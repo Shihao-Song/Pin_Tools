@@ -3,3 +3,5 @@ pinplay-3.7/
 *.so
 *.o
 *.exe
+*.out
+*.log

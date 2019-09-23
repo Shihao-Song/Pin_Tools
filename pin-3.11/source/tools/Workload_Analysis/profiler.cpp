@@ -51,11 +51,11 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
     // TODO, send to a MMU simulator and a cache simulator
     if (micro_op.isLoad())
     {
-        printf("R\n");
+        std::cout << "R\n";
     }
     else
     {
-        printf("W\n");
+        std::cout << "W\n";
     }
 }
 
@@ -130,6 +130,23 @@ static void instructionSim(INS ins, VOID *v)
     }
 }
 
+static void traceCallback(TRACE trace, VOID *v)
+{
+    BBL bbl_head = TRACE_BblHead(trace);
+
+    for (BBL bbl = bbl_head; BBL_Valid(bbl); bbl = BBL_Next(bbl))
+    {
+        for(INS ins = BBL_InsHead(bbl); ; ins = INS_Next(ins))
+        {
+            instructionSim(ins, 0);
+            if (ins == BBL_InsTail(bbl))
+            {
+                break;
+            }
+        }
+    }
+}
+
 static void printResults(int dummy, VOID *p)
 {
     std::cout << "Total number of instructions: " << insn_count << "\n";
@@ -147,7 +164,8 @@ main(int argc, char *argv[])
     }
 
     // Simulate each instruction 
-    INS_AddInstrumentFunction(instructionSim, NULL);
+    // INS_AddInstrumentFunction(instructionSim, NULL); // Too much overhead
+    TRACE_AddInstrumentFunction(traceCallback, 0);
 
     // Print stats
     PIN_AddFiniFunction(printResults, NULL);

@@ -1,7 +1,7 @@
 #include <iostream>
 
 #include "pin.H"
-#include "src/micro_op.hh"
+#include "src/simulation.h"
 
 /*
  * Profiling Tool: 
@@ -16,25 +16,38 @@
  *     7) Number of cache loads (all cache levels); (Not yet finished)
  *     8) Number of cache evictions (all cache levels); (Not yet finished)
  * */
+// Simulation components
+BP::Branch_Predictor *bp; // A branch predictor
 
+static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
-static void increCount() { ++insn_count; }
+static void increCount() { ++insn_count; if (insn_count == 10000000000) { end_sim = true; } }
 
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
-    MICRO_OP micro_op;
+    if (end_sim)
+    {
+        std::cout << "Number of instructions: " << insn_count << "\n";
+        std::cout << "Number of correct predictions: " << bp->num_correct_preds << "\n";
+        std::cout << "Number of in-correct predictions: " << bp->num_incorrect_preds << "\n";
+        exit(0);
+    }
 
-    micro_op.setPC(eip);
-    micro_op.setBranch();
-    micro_op.setTaken(taken);
+    Instruction instr;
 
-    // TODO, sending micro_op to a branch predictor
+    instr.setPC(eip);
+    instr.setBranch();
+    instr.setTaken(taken);
+
+    // Sending to the branch predictor.
+    bp->predict(instr);
 }
 
 // Function: memory access simulation
 static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
+    /*
     MICRO_OP micro_op;
 
     micro_op.setPC(eip);
@@ -49,18 +62,30 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
     micro_op.setMemAddr(mem_addr);
 
     // TODO, send to a MMU simulator and a cache simulator
-    if (micro_op.isLoad())
+    std::cout << insn_count << ": ";
+
+    if (micro_op.isStore())
     {
-        std::cout << "R\n";
+        std::cout << "W ";
     }
     else
     {
-        std::cout << "W\n";
+        std::cout << "R ";
     }
+
+    std::cout << micro_op.getPC() << ", "
+              << micro_op.getMemAddr() << "\n";
+    */
+}
+
+//Function: Other function
+static void nonBranchNorMem()
+{
+//    std::cout << insn_count << ": E\n";
 }
 
 // "Main" function: decode and simulate the instruction
-static void instructionSim(INS ins, VOID *v)
+static void instructionSim(INS ins)
 {
     // Step one, increment instruction count.
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_END);
@@ -128,6 +153,10 @@ static void instructionSim(INS ins, VOID *v)
             }
         }
     }
+    else
+    {
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)nonBranchNorMem, IARG_END);
+    }
 }
 
 static void traceCallback(TRACE trace, VOID *v)
@@ -138,7 +167,7 @@ static void traceCallback(TRACE trace, VOID *v)
     {
         for(INS ins = BBL_InsHead(bbl); ; ins = INS_Next(ins))
         {
-            instructionSim(ins, 0);
+            instructionSim(ins);
             if (ins == BBL_InsTail(bbl))
             {
                 break;
@@ -150,6 +179,7 @@ static void traceCallback(TRACE trace, VOID *v)
 static void printResults(int dummy, VOID *p)
 {
     std::cout << "Total number of instructions: " << insn_count << "\n";
+    delete bp;
 }
 
 int
@@ -163,12 +193,14 @@ main(int argc, char *argv[])
         return 1;
     }
 
+    bp = new BP::Two_Bit_Local();
+
     // Simulate each instruction 
-    // INS_AddInstrumentFunction(instructionSim, NULL); // Too much overhead
+//    INS_AddInstrumentFunction(instructionSim, NULL); // Too much overhead
     TRACE_AddInstrumentFunction(traceCallback, 0);
 
     // Print stats
-    PIN_AddFiniFunction(printResults, NULL);
+    PIN_AddFiniFunction(printResults, 0);
 
     /* Never returns */
     PIN_StartProgram();

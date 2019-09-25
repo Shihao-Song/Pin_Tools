@@ -1,10 +1,13 @@
-#ifndef __MICRO_OP_HH__
-#define __MICRO_OP_HH__
+#ifndef __INSTRUCTION_HH__
+#define __INSTRUCTION_HH__
 
+#include <cstdint>
+
+typedef uint64_t Count;
 typedef uint64_t Addr;
 
 // Instruction Format
-struct MICRO_OP
+struct Instruction
 {
     Addr PC; // Program Counter of the instruction
 

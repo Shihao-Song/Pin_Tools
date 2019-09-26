@@ -18,6 +18,10 @@ class Branch_Predictor
 
     virtual void predict(Instruction &instr) {}
 
+    // The correctness of the branch prediction.
+    int perf() { return float(num_correct_preds) / 
+                 (float(num_correct_preds) + float(num_incorrect_preds)) * 100; }
+
   protected:
     class Sat_Counter
     {
@@ -44,7 +48,6 @@ class Branch_Predictor
   protected:
     const unsigned instShiftAmt;
 
-  public:    
     Count num_correct_preds;
     Count num_incorrect_preds;
 

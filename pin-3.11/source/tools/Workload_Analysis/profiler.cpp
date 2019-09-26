@@ -19,18 +19,22 @@
 // Simulation components
 BP::Branch_Predictor *bp; // A branch predictor
 
+static bool start_sim = false;
 static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
-static void increCount() { ++insn_count; if (insn_count == 10000000000) { end_sim = true; } }
+static void increCount() { ++insn_count;
+                           if (insn_count == 10000000000) {start_sim = true; }
+                           if (insn_count == 30000000000) { end_sim = true; } }
 
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
+    if (!start_sim) { return; }
+
     if (end_sim)
     {
         std::cout << "Number of instructions: " << insn_count << "\n";
-        std::cout << "Number of correct predictions: " << bp->num_correct_preds << "\n";
-        std::cout << "Number of in-correct predictions: " << bp->num_incorrect_preds << "\n";
+        std::cout << "Correctness rate: " << bp->perf() << "%.\n";
         exit(0);
     }
 
@@ -193,10 +197,10 @@ main(int argc, char *argv[])
         return 1;
     }
 
-    bp = new BP::Two_Bit_Local();
+//    bp = new BP::Two_Bit_Local();
+    bp = new BP::Tournament();
 
     // Simulate each instruction 
-//    INS_AddInstrumentFunction(instructionSim, NULL); // Too much overhead
     TRACE_AddInstrumentFunction(traceCallback, 0);
 
     // Print stats

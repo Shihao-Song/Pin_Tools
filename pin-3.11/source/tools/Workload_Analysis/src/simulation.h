@@ -5,5 +5,6 @@
 #include "Branch_Predictor/instruction.hh"
 #include "Branch_Predictor/branch_predictor.hh"
 #include "Branch_Predictor/two_bit_local.hh"
+#include "Branch_Predictor/tournament.hh"
 
 #endif

@@ -1,7 +1,7 @@
 #ifndef __TWO_BIT_LOCAL_HH__
 #define __TWO_BIT_LOCAL_HH__
 
-#include "branch_predictor.hh"
+#include "../branch_predictor.hh"
 
 #include <vector>
 
@@ -17,7 +17,7 @@ class Two_Bit_Local : public Branch_Predictor
         assert(checkPowerofTwo(local_predictor_size));
     }
 
-    void predict(Instruction &instr) override
+    void predict(Instruction &instr, Count timer) override
     {
         Addr branch_addr = instr.PC;
 

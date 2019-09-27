@@ -16,7 +16,7 @@ class Branch_Predictor
 
     virtual ~Branch_Predictor() {}
 
-    virtual void predict(Instruction &instr) {}
+    virtual void predict(Instruction &instr, Count timer) {}
 
     // The correctness of the branch prediction.
     int perf() { return float(num_correct_preds) / 

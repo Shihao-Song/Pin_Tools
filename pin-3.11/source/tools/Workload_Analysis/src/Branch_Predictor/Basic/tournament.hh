@@ -1,7 +1,7 @@
 #ifndef __TOURNAMENT_HH__
 #define __TOURNAMENT_HH__
 
-#include "branch_predictor.hh"
+#include "../branch_predictor.hh"
 
 #include <vector>
 
@@ -36,7 +36,7 @@ class Tournament : public Branch_Predictor
         assert(global_predictor_size == choice_predictor_size); //TODO, limitation
     }
 
-    void predict(Instruction &instr) override
+    void predict(Instruction &instr, Count timer) override
     {
         Addr branch_addr = instr.PC;
 

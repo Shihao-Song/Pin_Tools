@@ -29,11 +29,11 @@ static void increCount() { ++insn_count;
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
-    if (!start_sim) { return; }
+//    if (!start_sim) { return; }
 
     if (end_sim)
     {
-        std::cout << "Number of instructions: " << insn_count << "\n";
+        std::cout << "\nNumber of instructions: " << insn_count << "\n";
         std::cout << "Correctness rate: " << bp->perf() << "%.\n";
         exit(0);
     }
@@ -45,7 +45,7 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
     instr.setTaken(taken);
 
     // Sending to the branch predictor.
-    bp->predict(instr);
+    bp->predict(instr, insn_count); // I'm using insn_count as time-stamp.
 }
 
 // Function: memory access simulation
@@ -198,7 +198,8 @@ main(int argc, char *argv[])
     }
 
 //    bp = new BP::Two_Bit_Local();
-    bp = new BP::Tournament();
+//    bp = new BP::Tournament();
+    bp = new BP::PentiumM();
 
     // Simulate each instruction 
     TRACE_AddInstrumentFunction(traceCallback, 0);

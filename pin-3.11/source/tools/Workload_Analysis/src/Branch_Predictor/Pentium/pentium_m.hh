@@ -29,9 +29,38 @@ class PentiumM : public Branch_Predictor
         else if (lp_out != -1 && btb_out != -1) { final_prediction = lp_out; }
         else { final_prediction = bimodal_out; }
 
+        // Update counters
         bool actual = instr.taken;
         if (final_prediction == actual) { ++num_correct_preds; }
         else { ++num_incorrect_preds; }
+
+        // Update tables
+        btb.update(actual, branch_addr, timer);
+        loop_predictor.update(actual, branch_addr, timer);
+
+        // Update bimodal predictor only when global and loop predictors missed
+        if (global_out == -1 && lp_out == -1)
+        {
+            bimodal.update(actual, branch_addr, timer);
+        }
+
+        // Global should only allocate when no loop predictor hit and bimodal was wrong
+        bool alloc_global = (lp_out == -1) && (bimodal_out != actual);
+
+        if (global_out != -1)
+        {
+            if (final_prediction != actual && !alloc_global) { global_predictor.evict(branch_addr, pir); }
+            else { global_predictor.update(actual, branch_addr, pir, timer); }
+        }
+        else if (final_prediction != actual && alloc_global)
+        {
+            global_predictor.update(actual, branch_addr, pir, timer);
+        }
+
+        // update pir
+        Addr rhs = 0;
+        if (actual) { rhs = branch_addr >> 4; }
+        pir = ((pir << 2) ^ rhs) & 0x7fff;
     }
 
   protected:

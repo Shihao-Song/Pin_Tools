@@ -34,6 +34,22 @@ class Pentium_M_Global_Predictor : public Branch_Predictor
         return -1; // Not found.
     }
 
+    void evict(Addr pc, Addr pir)
+    {
+        Addr index, tag;
+
+        gen_index_tag(pc, pir, index, tag);
+
+        for (unsigned w = 0; w < NUM_WAYS; w++)
+        {
+            if (sets[index].ways[w].valid && sets[index].ways[w].tag == tag)
+            {
+                sets[index].ways[w].valid = false;
+                return;
+            }
+        }
+    }
+
     void update(bool actual, Addr pc, Addr pir, Count timer)
     {
         Addr index, tag;

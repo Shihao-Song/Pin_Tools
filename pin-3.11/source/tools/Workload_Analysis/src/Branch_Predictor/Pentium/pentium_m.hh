@@ -2,6 +2,7 @@
 #define __PENTIUM_M_HH__
 
 #include "pentium_m_global_predictor.hh"
+#include "pentium_m_loop_branch_predictor.hh"
 
 namespace BP
 {
@@ -12,7 +13,7 @@ class PentiumM : public Branch_Predictor
 
     void predict(Instruction &instr, Count timer) override
     {
-        global_predictor.lookup(instr.PC);
+    //    global_predictor.lookup(instr.PC);
     }
 
   protected:
@@ -21,6 +22,7 @@ class PentiumM : public Branch_Predictor
     // Need (2): A branch target buffer
     // Need (3): A bimodal table
     // Need (4): A loop branch predictor
+    Pentium_M_Loop_Branch_Predictor loop_predictor;
 };
 }
 

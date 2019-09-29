@@ -17,7 +17,7 @@ class Pentium_M_Global_Predictor : public Branch_Predictor
     Pentium_M_Global_Predictor() : sets(NUM_ENTRIES / NUM_WAYS, NUM_WAYS)
     {}
 
-    int lookup(Addr pc, Addr pir)
+    int lookup(Addr pc, Addr pir, Count timer)
     {
         Addr index, tag;
 
@@ -61,7 +61,6 @@ class Pentium_M_Global_Predictor : public Branch_Predictor
             }
         }
 
-        // TODO, This is not correct, counter should be set to 11 or 00 based on the actual.
         sets[index].ways[lru_way].init(tag, timer, actual);
     }
 

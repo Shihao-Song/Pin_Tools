@@ -17,6 +17,34 @@ class Pentium_M_Loop_Branch_Predictor : public Branch_Predictor
     {
     }
 
+    int lookup(Addr pc, Count timer)
+    {
+        Addr index, tag;
+
+        gen_index_tag(pc, index, tag);
+
+        for (unsigned w = 0; w < NUM_WAYS; w++)
+        {
+            if (sets[index].ways[w].enabled && 
+                sets[index].ways[w].valid && 
+                sets[index].ways[w].tag == tag)
+            {
+                sets[index].ways[w].lru = timer;
+
+                if (sets[index].ways[w].count == sets[index].ways[w].limit)
+                {
+                    return !sets[index].ways[w].predict();
+                }
+                else
+                {
+                    return sets[index].ways[w].predict();
+                }
+            }
+        }
+
+        return -1; // Not found/enabled.
+    }
+
     // The goal of a loop predictor: 
     // 000001 -> predict() == 0; 111110 -> predict() == 1.
     // Intuition: we do not expect to see two of the opposite type in a row.
@@ -47,6 +75,7 @@ class Pentium_M_Loop_Branch_Predictor : public Branch_Predictor
                 Count same_direction_limit;
                 bool same_direction_enabled = next_enabled;
 
+                // !match may mean: (1) Loop length misprediction; (2) direction mis-prediction
                 if (!match)
                 {
                     if (current_counter < current_limit)
@@ -109,6 +138,7 @@ class Pentium_M_Loop_Branch_Predictor : public Branch_Predictor
                         // We are now in the situations of 1110 or 0001
                         if (!current_enabled)
                         {
+                            // Now, a loop is detected. We can enable prediction.
                             next_enabled = true;
 
                             // At the same time, setup the count and limits correctly
@@ -136,13 +166,15 @@ class Pentium_M_Loop_Branch_Predictor : public Branch_Predictor
                 sets[index].ways[w].lru = timer;
                 sets[index].ways[w].prev_actual = actual;
 
-
-                if (sets[index].ways[w].lru < sets[index].ways[lru_way].lru)
-                {
-                    lru_way = w;
-                }
+                return;
             }
-        }	
+
+            if (sets[index].ways[w].lru < sets[index].ways[lru_way].lru)
+            {
+                lru_way = w;
+            }
+        }
+        sets[index].ways[lru_way].init(tag, timer, actual);
     }
 
   protected:
@@ -162,7 +194,7 @@ class Pentium_M_Loop_Branch_Predictor : public Branch_Predictor
         void decrement() { sat_counter.decrement(); }
 
         void init(Addr _tag, Count timer, bool actual)
-        { valid = true; tag = tag; lru = timer;
+        { valid = true; tag = tag; lru = timer; count = 1; limit = 1; prev_actual = actual;
           if (actual) { sat_counter.val = sat_counter.max_val; }
           else { sat_counter.val = 0; } }
 

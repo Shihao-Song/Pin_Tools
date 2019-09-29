@@ -9,9 +9,9 @@ class CONSTANTS
     static const unsigned instShiftAmt = 2; // Number of bits to shift a PC by
 
     // You can play around with these settings.
-    static const unsigned localPredictorSize = 2048;
+    static const unsigned localPredictorSize = 4096;
     static const unsigned localCounterBits = 2;
-    static const unsigned localHistoryTableSize = 2048;
+    static const unsigned localHistoryTableSize = 4096;
     static const unsigned globalPredictorSize = 8192;
     static const unsigned globalCounterBits = 2;
     static const unsigned choicePredictorSize = 8192; // Keep this the same as globalPredictorSize.

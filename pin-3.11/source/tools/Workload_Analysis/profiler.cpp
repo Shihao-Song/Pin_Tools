@@ -29,7 +29,7 @@ static void increCount() { ++insn_count;
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
-//    if (!start_sim) { return; }
+    if (!start_sim) { return; }
 
     if (end_sim)
     {
@@ -198,6 +198,7 @@ main(int argc, char *argv[])
     }
 
 //    bp = new BP::Two_Bit_Local();
+    // Let's keep tournament fixed.
     bp = new BP::Tournament();
 //    bp = new BP::PentiumM();
 

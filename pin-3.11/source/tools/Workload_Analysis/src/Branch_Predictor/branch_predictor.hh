@@ -19,7 +19,7 @@ class Branch_Predictor
     virtual void predict(Instruction &instr, Count timer) {}
 
     // The correctness of the branch prediction.
-    int perf() { return float(num_correct_preds) / 
+    float perf() { return float(num_correct_preds) / 
                  (float(num_correct_preds) + float(num_incorrect_preds)) * 100; }
 
   protected:

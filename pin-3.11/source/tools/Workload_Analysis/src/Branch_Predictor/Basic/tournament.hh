@@ -45,7 +45,7 @@ class Tournament : public Branch_Predictor
             (branch_addr >> instShiftAmt) & local_history_table_mask;
 
         unsigned local_predictor_index = local_history_table[local_history_table_index] & 
-            local_predictor_mask;
+            local_predictor_mask; // local history, should be updated as well.
 
         bool local_prediction = local_counters[local_predictor_index].predict();
 
@@ -101,6 +101,8 @@ class Tournament : public Branch_Predictor
 
         // Step six, update global history register
         global_history = global_history << 1 | instr.taken;
+        local_history_table[local_history_table_index] = 
+            local_history_table[local_history_table_index] << 1 | instr.taken;
     }
 
   protected:

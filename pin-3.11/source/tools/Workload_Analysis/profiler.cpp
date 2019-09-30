@@ -198,8 +198,8 @@ main(int argc, char *argv[])
     }
 
 //    bp = new BP::Two_Bit_Local();
-//    bp = new BP::Tournament();
-    bp = new BP::PentiumM();
+    bp = new BP::Tournament();
+//    bp = new BP::PentiumM();
 
     // Simulate each instruction 
     TRACE_AddInstrumentFunction(traceCallback, 0);

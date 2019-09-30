@@ -12,9 +12,9 @@ class CONSTANTS
     static const unsigned localPredictorSize = 4096;
     static const unsigned localCounterBits = 2;
     static const unsigned localHistoryTableSize = 4096;
-    static const unsigned globalPredictorSize = 8192;
+    static const unsigned globalPredictorSize = 2048;
     static const unsigned globalCounterBits = 2;
-    static const unsigned choicePredictorSize = 8192; // Keep this the same as globalPredictorSize.
+    static const unsigned choicePredictorSize = 2048; // Keep this the same as globalPredictorSize.
     static const unsigned choiceCounterBits = 2;
 };
 }

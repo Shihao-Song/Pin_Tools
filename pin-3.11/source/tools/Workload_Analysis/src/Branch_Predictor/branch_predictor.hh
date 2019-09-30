@@ -2,7 +2,7 @@
 #define __BRANCH_PREDICTOR_HH__
 
 #include "branch_predictor_constants.hh"
-#include "instruction.hh"
+#include "../Sim/instruction.hh"
 
 namespace BP
 {

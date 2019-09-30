@@ -1,43 +1,48 @@
 #include <iostream>
+#include <string>
 
 #include "pin.H"
 #include "src/simulation.h"
 
 /*
  * Profiling Tool: 
- * (1) Divide the entire program into intervals (100M instructions);
+ * (1) Divide the entire program into intervals (250M instructions);
  * (2) For each interval, record the followings (not limited):
  *     1) Number of (new) first-touch instructions; (Not yet finished)
  *     2) Number of (new) touched pages/page faults; (Not yet finished)
- *     3) Number of correct branch predictions; (Not yet finished)
- *     4) Number of in-correct branch predictions; (Not yet finished)
+ *     3) Number of correct branch predictions; (Finished)
+ *     4) Number of in-correct branch predictions; (Finished)
  *     5) Number of cache hits (all cache levels); (Not yet finished)
  *     6) Number of cache misses (all cache levels); (Not yet finished)
  *     7) Number of cache loads (all cache levels); (Not yet finished)
  *     8) Number of cache evictions (all cache levels); (Not yet finished)
  * */
+KNOB<std::string> StatOutputFile(KNOB_MODE_WRITEONCE, "pintool",
+    "o", "", "specify stats output file name");
+
+KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
+    "i", "", "specify system configuration file name");
+
 // Simulation components
 BP::Branch_Predictor *bp; // A branch predictor
 
 static bool start_sim = false;
-static bool end_sim = false; 
+// static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount() { ++insn_count;
                            if (insn_count == 10000000000) {start_sim = true; }
-                           if (insn_count == 30000000000) { end_sim = true; } }
+                           if (insn_count == 30000000000)
+                           {
+                               std::cout << "\nNumber of instructions: " << insn_count << "\n";
+                               std::cout << "Correctness rate: " << bp->perf() << "%.\n";
+                               exit(0);
+                           } }
 
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
     if (!start_sim) { return; }
-
-    if (end_sim)
-    {
-        std::cout << "\nNumber of instructions: " << insn_count << "\n";
-        std::cout << "Correctness rate: " << bp->perf() << "%.\n";
-        exit(0);
-    }
-
+    
     Instruction instr;
 
     instr.setPC(eip);
@@ -51,35 +56,20 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 // Function: memory access simulation
 static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
-    /*
-    MICRO_OP micro_op;
+    Request req;
 
-    micro_op.setPC(eip);
+    req.eip = eip;
     if (is_store)
     {
-        micro_op.setStore();
+        req.req_type = Request::Request_Type::WRITE;
     }
     else
     {
-        micro_op.setLoad();
+        req.req_type = Request::Request_Type::READ;
     }
-    micro_op.setMemAddr(mem_addr);
+    req.addr = mem_addr;
 
-    // TODO, send to a MMU simulator and a cache simulator
-    std::cout << insn_count << ": ";
-
-    if (micro_op.isStore())
-    {
-        std::cout << "W ";
-    }
-    else
-    {
-        std::cout << "R ";
-    }
-
-    std::cout << micro_op.getPC() << ", "
-              << micro_op.getMemAddr() << "\n";
-    */
+    // TODO, sending to Cache
 }
 
 //Function: Other function
@@ -196,11 +186,15 @@ main(int argc, char *argv[])
     {
         return 1;
     }
+    assert(!StatOutputFile.Value().empty());
+    assert(!CfgFile.Value().empty());
 
 //    bp = new BP::Two_Bit_Local();
     // Let's keep tournament fixed.
     bp = new BP::Tournament();
 //    bp = new BP::PentiumM();
+
+    Config cfg(CfgFile.Value());
 
     // Simulate each instruction 
     TRACE_AddInstrumentFunction(traceCallback, 0);

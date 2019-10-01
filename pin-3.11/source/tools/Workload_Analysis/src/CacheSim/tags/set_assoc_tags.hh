@@ -3,10 +3,10 @@
 
 #include <assert.h>
 
-#include "Sim/config.hh"
+#include "../cache_blk.hh"
 
-#include "CacheSim/tags/cache_tags.hh"
-#include "CacheSim/tags/replacement_policies/set_way_lru.hh"
+#include "cache_tags.hh"
+#include "replacement_policies/set_way_lru.hh"
 
 namespace CacheSimulator
 {
@@ -21,12 +21,6 @@ template<typename P>
 class SetWayAssocTags : public TagsWithSetWayBlk
 {
   protected:
-    typedef uint64_t Addr;
-    typedef uint64_t Tick;
-
-    typedef Simulator::Config Config;
-
-  protected:
     const int assoc;
 
     const uint32_t num_sets;
@@ -39,7 +33,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
 
     std::vector<std::vector<SetWayBlk *>> sets;
 
-    std::unique_ptr<P> policy;
+    P policy;
 
   public:
     SetWayAssocTags(int level, Config &cfg)
@@ -48,9 +42,8 @@ class SetWayAssocTags : public TagsWithSetWayBlk
           num_sets(size / (block_size * assoc)),
           set_shift(log2(block_size)),
           set_mask(num_sets - 1),
-          sets(num_sets),
           tag_shift(set_shift + log2(num_sets)),
-          policy(new P())
+          sets(num_sets)
     {
         for (uint32_t i = 0; i < num_sets; i++)
         {
@@ -72,7 +65,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         if (blk != nullptr)
         {
             hit = true;
-            policy->upgrade(blk, cur_clk);
+            policy.upgrade(blk, cur_clk);
 
             if (modify) { blk->setDirty(); }
         }
@@ -82,50 +75,16 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     std::pair<bool, Addr> insertBlock(Addr addr, bool modify, Tick cur_clk = 0) override
     {
         // Find a victim block 
-        auto [wb_required, victim_addr, victim] = findVictim(addr); 
+        auto ret = findVictim(addr);
+        bool wb_required = ret.wb_required;
+        Addr victim_addr = ret.wb_addr;
+        SetWayBlk *victim = ret.victim;
 
         if (modify) { victim->setDirty(); }
         victim->insert(extractTag(addr));
-        policy->upgrade(victim, cur_clk);
+        policy.upgrade(victim, cur_clk);
 
         return std::make_pair(wb_required, victim_addr);
-    }
-
-    void recordMMUCommu(Addr block_addr,
-                        int core_id,
-                        Addr eip,
-                        std::function<void(Simulator::Request&)> mmu_cb) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        SetWayBlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-
-        blk->clearMMUCommu();
-        blk->recordMMUCommu(core_id, eip, mmu_cb);
-    }
-
-    std::tuple<int,
-               Addr,
-               std::function<void(Simulator::Request&)>> 
-        retriMMUCommu(Addr block_addr) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        SetWayBlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-
-        return blk->retriMMUCommu();
-    }
-
-    void clearMMUCommu(Addr block_addr) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        SetWayBlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-
-        blk->clearMMUCommu();
     }
 
     void reInitialize() override
@@ -134,7 +93,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         {
             blks[i].invalidate();
             blks[i].clearDirty();
-            blks[i].clearMMUCommu();
             blks[i].when_touched = 0;
         }
         tagsInit();
@@ -191,17 +149,18 @@ class SetWayAssocTags : public TagsWithSetWayBlk
                 return way;
             }
         }
-
         return nullptr;
     }
 
-    std::tuple<bool, Addr, SetWayBlk*> findVictim(Addr addr) override
+    victimRet findVictim(Addr addr) override
     {
         // Extract the set
         const std::vector<SetWayBlk *> set = sets[extractSet(addr)];
 
         // Get the victim block based on replacement policy
-        auto [wb_required, victim] = policy->findVictim(set);
+        auto ret = policy.findVictim(set);
+        bool wb_required = ret.first;
+        SetWayBlk *victim = ret.second;
         assert(victim != nullptr);
 
         Addr victim_addr = MaxAddr;
@@ -217,18 +176,17 @@ class SetWayAssocTags : public TagsWithSetWayBlk
             invalidate(victim);
         }
 
-        return std::make_tuple(wb_required, victim_addr, victim);
+        return victimRet{wb_required, victim_addr, victim};
     }
 
     void invalidate(SetWayBlk* victim) override
     {
         victim->invalidate();
         victim->clearDirty();
-        policy->downgrade(victim);
+        policy.downgrade(victim);
         assert(!victim->isValid());
     }
 };
-
 typedef SetWayAssocTags<SetWayAssocLRU> LRUSetWayAssocTags;
 }
 

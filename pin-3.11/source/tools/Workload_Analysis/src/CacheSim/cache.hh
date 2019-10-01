@@ -1,14 +1,30 @@
 #ifndef __CACHE_HH__
 #define __CACHE_HH__
 
-#include "mem_object.hh"
-//#include "CacheSim/tags/fa_tags.hh"
-//#include "CacheSim/tags/set_assoc_tags.hh"
+#include "../Sim/mem_object.hh"
+
+#include "tags/cache_tags.hh"
+#include "tags/set_assoc_tags.hh"
 
 #include <string>
 
 namespace CacheSimulator
 {
+// Should be a template.
+class Cache : public MemObject
+{
+  public:
+    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) {}
+
+    bool send(Request &req) override
+    {
+        return false;
+    }
+
+  protected:
+    LRUSetWayAssocTags tags;
+};
+/*
 struct OnChipToOffChip{}; // Next level is off-chip
 struct OnChipToOnChip{}; // Next level is still on-chip
 
@@ -113,6 +129,7 @@ class Cache : public Simulator::MemObject
                             ": Number of Evictions = " + std::to_string(num_evicts));
     }
 };
+*/
 /*
 typedef Cache<LRUFATags,NormalMode,OnChipToOffChip> FA_LRU_LLC;
 typedef Cache<LRUFATags,WriteOnly,OnChipToOffChip> FA_LRU_LLC_WRITE_ONLY;

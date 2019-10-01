@@ -11,5 +11,6 @@
 #include "Sim/config.hh"
 #include "Sim/request.hh"
 #include "Sim/mem_object.hh"
+#include "CacheSim/cache.hh"
 
 #endif

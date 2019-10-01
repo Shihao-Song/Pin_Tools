@@ -1,7 +1,10 @@
 #ifndef __CACHE_TAGS_HH__
 #define __CACHE_TAGS_HH__
 
-#include "Sim/request.hh"
+#include "../../Sim/config.hh"
+#include "../../Sim/request.hh"
+
+#include <vector>
 
 namespace CacheSimulator
 {
@@ -9,11 +12,7 @@ template<class T>
 class Tags
 {
   public:
-    typedef uint64_t Addr;
-    typedef uint64_t Tick;
     const Addr MaxAddr = (Addr) - 1;
-
-    typedef Simulator::Config Config;
 
   public:
     // Must be a constructor if there are any const type
@@ -22,7 +21,7 @@ class Tags
           block_mask(block_size - 1),
           size(cfg.caches[level].size * 1024),
           num_blocks(size / block_size),
-          blks(new T[num_blocks])
+          blks(num_blocks)
     {}
 
   protected:
@@ -32,7 +31,7 @@ class Tags
     const unsigned num_blocks; // number of blocks in the cache
 
   protected:
-    std::unique_ptr<T[]> blks; // All cache blocks
+    std::vector<T> blks; // All cache blocks
 
   public:
 
@@ -43,16 +42,6 @@ class Tags
     virtual std::pair<bool, Addr> insertBlock(Addr addr, bool modify, Tick cur_clk = 0) = 0;
 
     virtual void reInitialize() {}
-    
-    // Advanced features, MMU communications
-    virtual void recordMMUCommu(Addr,
-                                int,
-                                Addr,
-                                std::function<void(Simulator::Request&)>) {}
-    virtual std::tuple<int,
-                       Addr,
-                       std::function<void(Simulator::Request&)>> retriMMUCommu(Addr) = 0;
-    virtual void clearMMUCommu(Addr) {}
 
     virtual void printTagInfo() {}
 
@@ -76,7 +65,13 @@ class Tags
     virtual T* findBlock(Addr addr) const = 0;    
     
     // Find the victim block to be replaced
-    virtual std::tuple<bool, Addr, T*> findVictim(Addr addr) = 0;
+    struct victimRet
+    {
+        bool wb_required;
+        Addr wb_addr;
+        T* victim;
+    };
+    virtual victimRet findVictim(Addr addr) = 0;
     
     virtual void invalidate(T* victim) {}
 };

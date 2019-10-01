@@ -1,18 +1,13 @@
 #ifndef __CACHE_REPLACEMENT_POLICY_HH__
 #define __CACHE_REPLACEMENT_POLICY_HH__
 
-#include "CacheSim/cache_blk.hh"
-#include "CacheSim/tags/cache_tags.hh"
+#include "../../cache_blk.hh"
 
 namespace CacheSimulator
 {
 template<class T>
 class ReplacementPolicy
 {
-  public:
-    typedef uint64_t Addr;
-    typedef uint64_t Tick;
-
   public:
     ReplacementPolicy() {}
 

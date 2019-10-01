@@ -4,7 +4,7 @@
 #include <cassert>
 #include <cstdint>
 
-#include "request.hh"
+#include "../Sim/request.hh"
 
 namespace CacheSimulator
 {

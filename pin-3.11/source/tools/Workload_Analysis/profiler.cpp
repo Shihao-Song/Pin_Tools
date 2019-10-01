@@ -269,7 +269,7 @@ main(int argc, char *argv[])
         else { std::cout << "eDRAM-Cache is shared. \n\n"; }
     }
 
-
+    //MemObject *cache = new CacheSimulator::Cache(Config::Cache_Level::L1D, *cfg);
     exit(0);
 
 //    bp = new BP::Two_Bit_Local();

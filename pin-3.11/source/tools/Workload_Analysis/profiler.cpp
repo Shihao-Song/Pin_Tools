@@ -17,9 +17,6 @@
  *     7) Number of cache loads (all cache levels); (Not yet finished)
  *     8) Number of cache evictions (all cache levels); (Not yet finished)
  * */
-KNOB<std::string> StatOutputFile(KNOB_MODE_WRITEONCE, "pintool",
-    "o", "", "specify stats output file name");
-
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");
 
@@ -177,6 +174,7 @@ static void printResults(int dummy, VOID *p)
     delete bp;
 }
 
+using std::ofstream;
 int
 main(int argc, char *argv[])
 {
@@ -187,89 +185,90 @@ main(int argc, char *argv[])
     {
         return 1;
     }
-    assert(!StatOutputFile.Value().empty());
     assert(!CfgFile.Value().empty());
 
     cfg = new Config(CfgFile.Value());
-    std::cout << "\n";
+    ofstream prof_cfg("profiling.cfg");
     if (cfg->caches[int(Config::Cache_Level::L1D)].valid)
     {
-        std::cout << "L1D-Cache is enabled. \n";
-        std::cout << "L1D-Cache size (KB): "
-                  << cfg->caches[int(Config::Cache_Level::L1D)].size << "\n";
+        prof_cfg << "L1D-Cache is enabled. \n";
+        prof_cfg << "L1D-Cache size (KB): "
+                 << cfg->caches[int(Config::Cache_Level::L1D)].size << "\n";
         if (cfg->caches[int(Config::Cache_Level::L1D)].assoc != -1)
         {
-            std::cout << "L1D-Cache assoc: "
-                      << cfg->caches[int(Config::Cache_Level::L1D)].assoc << "\n";
+            prof_cfg << "L1D-Cache assoc: "
+                     << cfg->caches[int(Config::Cache_Level::L1D)].assoc << "\n";
         }
         else
         {
-            std::cout << "L1D-Cache is fully-associative.\n";
+            prof_cfg << "L1D-Cache is fully-associative.\n";
         }
 
         if (!cfg->caches[int(Config::Cache_Level::L1D)].shared)
-        { std::cout << "L1D-Cache is private (per core). \n\n"; }
-        else { std::cout << "L1D-Cache is shared. \n\n"; }
+        { prof_cfg << "L1D-Cache is private (per core). \n\n"; }
+        else { prof_cfg << "L1D-Cache is shared. \n\n"; }
     }
     if (cfg->caches[int(Config::Cache_Level::L2)].valid)
     {
-        std::cout << "L2-Cache is enabled. \n";
-        std::cout << "L2-Cache size (KB): "
-                  << cfg->caches[int(Config::Cache_Level::L2)].size << "\n";
+        prof_cfg << "L2-Cache is enabled. \n";
+        prof_cfg << "L2-Cache size (KB): "
+                 << cfg->caches[int(Config::Cache_Level::L2)].size << "\n";
         if (cfg->caches[int(Config::Cache_Level::L2)].assoc != -1)
         {
-            std::cout << "L2-Cache assoc: "
-                      << cfg->caches[int(Config::Cache_Level::L2)].assoc << "\n";
+            prof_cfg << "L2-Cache assoc: "
+                     << cfg->caches[int(Config::Cache_Level::L2)].assoc << "\n";
         }
         else
         {
-            std::cout << "L2-Cache is fully-associative.\n";
+            prof_cfg << "L2-Cache is fully-associative.\n";
         }
 
         if (!cfg->caches[int(Config::Cache_Level::L2)].shared)
-        { std::cout << "L2-Cache is private (per core). \n\n"; }
-        else { std::cout << "L2-Cache is shared. \n\n"; }
+        { prof_cfg << "L2-Cache is private (per core). \n\n"; }
+        else { prof_cfg << "L2-Cache is shared. \n\n"; }
     }
     if (cfg->caches[int(Config::Cache_Level::L3)].valid)
     {
-        std::cout << "L3-Cache is enabled. \n";
-        std::cout << "L3-Cache size (KB): "
-                  << cfg->caches[int(Config::Cache_Level::L3)].size << "\n";
+        prof_cfg << "L3-Cache is enabled. \n";
+        prof_cfg << "L3-Cache size (KB): "
+                 << cfg->caches[int(Config::Cache_Level::L3)].size << "\n";
         if (cfg->caches[int(Config::Cache_Level::L3)].assoc != -1)
         {
-            std::cout << "L3-Cache assoc: "
-                      << cfg->caches[int(Config::Cache_Level::L3)].assoc << "\n";
+            prof_cfg << "L3-Cache assoc: "
+                     << cfg->caches[int(Config::Cache_Level::L3)].assoc << "\n";
         }
         else
         {
-            std::cout << "L3-Cache is fully-associative.\n";
+            prof_cfg << "L3-Cache is fully-associative.\n";
         }
 
         if (!cfg->caches[int(Config::Cache_Level::L3)].shared)
-        { std::cout << "L3-Cache is private (per core). \n\n"; }
-        else { std::cout << "L3-Cache is shared. \n\n"; }
+        { prof_cfg << "L3-Cache is private (per core). \n\n"; }
+        else { prof_cfg << "L3-Cache is shared. \n\n"; }
     }
     if (cfg->caches[int(Config::Cache_Level::eDRAM)].valid)
     {
-        std::cout << "eDRAM-Cache is enabled. \n";
-        std::cout << "eDRAM-Cache size (KB): "
-                  << cfg->caches[int(Config::Cache_Level::eDRAM)].size << "\n";
+        prof_cfg << "eDRAM-Cache is enabled. \n";
+        prof_cfg << "eDRAM-Cache size (KB): "
+                 << cfg->caches[int(Config::Cache_Level::eDRAM)].size << "\n";
         if (cfg->caches[int(Config::Cache_Level::eDRAM)].assoc != -1)
         {
-            std::cout << "eDRAM-Cache assoc: "
-                      << cfg->caches[int(Config::Cache_Level::eDRAM)].assoc << "\n";
+            prof_cfg << "eDRAM-Cache assoc: "
+                     << cfg->caches[int(Config::Cache_Level::eDRAM)].assoc << "\n";
         }
         else
         {
-            std::cout << "eDRAM-Cache is fully-associative.\n";
+            prof_cfg << "eDRAM-Cache is fully-associative.\n";
         }
 
         if (!cfg->caches[int(Config::Cache_Level::eDRAM)].shared)
-        { std::cout << "eDRAM-Cache is private (per core). \n\n"; }
-        else { std::cout << "eDRAM-Cache is shared. \n\n"; }
+        { prof_cfg << "eDRAM-Cache is private (per core). \n\n"; }
+        else { prof_cfg << "eDRAM-Cache is shared. \n\n"; }
     }
-
-    //MemObject *cache = new CacheSimulator::Cache(Config::Cache_Level::L1D, *cfg);
+    prof_cfg << std::flush;
+    CacheSimulator::Cache *cache = new CacheSimulator::Cache(Config::Cache_Level::L1D, *cfg);
+    Request req;
+    cache->send(req);
     exit(0);
 
 //    bp = new BP::Two_Bit_Local();
@@ -277,7 +276,7 @@ main(int argc, char *argv[])
     bp = new BP::Tournament();
 //    bp = new BP::PentiumM();
 
-    // Simulate each instruction 
+    // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
     TRACE_AddInstrumentFunction(traceCallback, 0);
 
     // Print stats

@@ -14,7 +14,7 @@ namespace CacheSimulator
 class Cache : public MemObject
 {
   public:
-    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) {}
+    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) { tags.printTagInfo(); }
 
     bool send(Request &req) override
     {

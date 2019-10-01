@@ -24,6 +24,7 @@ class Config
         int assoc;
         unsigned size;
         bool write_only;
+        bool shared;
     };
     std::vector<Cache_Info> caches;
 
@@ -115,6 +116,11 @@ class Config
         {
             caches[int(level)].write_only = tokens[1] == "false" ? 0 : 1;
         }
+        else if(tokens[0].find("shared") != std::string::npos)
+        {
+            caches[int(level)].shared = tokens[1] == "false" ? 0 : 1;
+        }
+
     }
 };
 #endif

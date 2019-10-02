@@ -13,7 +13,7 @@ class MemObject
     ~MemObject()
     {}
 
-    virtual bool send(Request &req) = 0;
+    virtual void send(Request &req) {}
     
     virtual void setNextLevel(MemObject *_next_level) { next_level = _next_level; }
 
@@ -27,7 +27,7 @@ class MemObject
     virtual void reInitialize() {}
 
   protected:
-    MemObject *next_level;
+    MemObject *next_level = nullptr;
 
     int id = -1;
 };

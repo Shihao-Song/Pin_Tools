@@ -76,6 +76,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     {
         // Find a victim block 
         auto ret = findVictim(addr);
+
         bool wb_required = ret.wb_required;
         Addr victim_addr = ret.wb_addr;
         SetWayBlk *victim = ret.victim;
@@ -159,7 +160,8 @@ class SetWayAssocTags : public TagsWithSetWayBlk
 
         // Get the victim block based on replacement policy
         auto ret = policy.findVictim(set);
-        bool wb_required = ret.first;
+
+	bool wb_required = ret.first;
         SetWayBlk *victim = ret.second;
         assert(victim != nullptr);
 

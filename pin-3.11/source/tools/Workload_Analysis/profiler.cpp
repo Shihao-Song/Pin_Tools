@@ -21,8 +21,11 @@ KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");
 
 // Simulation components
+static const unsigned NUM_CORES = 1;
+
 Config *cfg;;
-BP::Branch_Predictor *bp; // A branch predictor
+BP::Branch_Predictor *bp;
+std::vector<CacheSimulator::Cache*> caches;
 
 static bool start_sim = false;
 // static bool end_sim = false; 
@@ -32,7 +35,16 @@ static void increCount() { ++insn_count;
                            if (insn_count == 30000000000)
                            {
                                std::cout << "\nNumber of instructions: " << insn_count << "\n";
-                               std::cout << "Correctness rate: " << bp->perf() << "%.\n";
+                               // std::cout << "Correctness rate: " << bp->perf() << "%.\n";
+                               std::cout << "L1D-Cache Num Loads: " << caches[0]->num_loads << "\n";
+                               std::cout << "L1D-Cache Num Evicts: " << caches[0]->num_evicts << "\n";
+                               std::cout << "L1D-Cache Num Hits: " << caches[0]->num_hits << "\n";
+                               std::cout << "L1D-Cache Num Misses: " << caches[0]->num_misses << "\n";
+
+                               float hit_rate = float(caches[0]->num_hits) /
+                                               (float(caches[0]->num_hits) + 
+                                                float(caches[0]->num_misses)) * 100;
+                               std::cout << "L1D-Cache Hit Rate: " << hit_rate << "\n";
                                exit(0);
                            } }
 
@@ -54,6 +66,8 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 // Function: memory access simulation
 static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
+    if (!start_sim) { return; }
+
     Request req;
 
     req.eip = eip;
@@ -68,6 +82,7 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
     req.addr = mem_addr;
 
     // TODO, sending to Cache
+    caches[0]->send(req);
 }
 
 //Function: Other function
@@ -188,9 +203,18 @@ main(int argc, char *argv[])
     assert(!CfgFile.Value().empty());
 
     cfg = new Config(CfgFile.Value());
+
+    // First-level cache must be enabled
+    assert(cfg->caches[int(Config::Cache_Level::L1D)].valid);
     ofstream prof_cfg("profiling.cfg");
     if (cfg->caches[int(Config::Cache_Level::L1D)].valid)
     {
+        for (unsigned i = 0; i < NUM_CORES; i++)
+        {
+            caches.emplace_back(new CacheSimulator::Cache(Config::Cache_Level::L1D, *cfg));
+        }
+        assert(caches.size() == NUM_CORES);
+
         prof_cfg << "L1D-Cache is enabled. \n";
         prof_cfg << "L1D-Cache size (KB): "
                  << cfg->caches[int(Config::Cache_Level::L1D)].size << "\n";
@@ -265,16 +289,9 @@ main(int argc, char *argv[])
         { prof_cfg << "eDRAM-Cache is private (per core). \n\n"; }
         else { prof_cfg << "eDRAM-Cache is shared. \n\n"; }
     }
-    prof_cfg << std::flush;
-    CacheSimulator::Cache *cache = new CacheSimulator::Cache(Config::Cache_Level::L1D, *cfg);
-    Request req;
-    cache->send(req);
-    exit(0);
 
-//    bp = new BP::Two_Bit_Local();
     // Let's keep tournament fixed.
     bp = new BP::Tournament();
-//    bp = new BP::PentiumM();
 
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
     TRACE_AddInstrumentFunction(traceCallback, 0);

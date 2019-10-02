@@ -14,14 +14,49 @@ namespace CacheSimulator
 class Cache : public MemObject
 {
   public:
-    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) { tags.printTagInfo(); }
+    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) { }
 
-    bool send(Request &req) override
+    void send(Request &req) override
     {
-        return false;
+        accesses++;
+
+        auto access_info = tags.accessBlock(req.addr,
+                                            req.req_type != Request::Request_Type::READ ?
+                                            true : false,
+                                            accesses);
+
+        bool hit = access_info.first;
+        Addr aligned_addr = access_info.second;
+        if (hit) { ++num_hits; return;}
+
+        // Insert the missed block
+        auto insert_info = tags.insertBlock(aligned_addr,
+                                            req.req_type != Request::Request_Type::READ ?
+                                            true : false,
+                                            accesses);
+        bool wb_required = insert_info.first;
+        // Addr wb_addr = insert_info.second;
+
+        if (req.req_type != Request::Request_Type::WRITE_BACK)
+        {
+            ++num_misses;
+            ++num_loads;
+        }
+
+        if (wb_required)
+        {
+            ++num_evicts;
+	}
     }
 
-  protected:
+//  protected:
+    Tick accesses = 0; // We are using this for LRU policy.
+
+    uint64_t num_loads = 0;
+    uint64_t num_evicts = 0;
+    uint64_t num_misses = 0;
+    uint64_t num_hits = 0;
+
     LRUSetWayAssocTags tags;
 };
 /*
@@ -68,27 +103,7 @@ class Cache : public Simulator::MemObject
     {
 
         // Step one, check whether it is a hit or not
-        if (auto [hit, aligned_addr] = tags->accessBlock(req.addr,
-                                       req.req_type != Request::Request_Type::READ ?
-                                       true : false,
-                                       clk);
-            hit)
-        {
-        }
-        else
-        {
-            // Step three, if there is a write-back (eviction). We should allocate the space
-            // directly.
-            if (req.req_type == Request::Request_Type::WRITE_BACK)
-            {
-                    // A write-back from higher level must be a dirty block.
-                    if (auto [wb_required, wb_addr] = tags->insertBlock(aligned_addr,
-                                                                        true,
-                                                                        clk);
-                        wb_required)
-                    {
-                    }
-
+        
     }
 
 

@@ -15,8 +15,7 @@ namespace CacheSimulator
 class Cache : public MemObject
 {
   public:
-    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg),
-                                                  fa_tags(int(lev), cfg) { }
+    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg){}
 
     void send(Request &req) override
     {
@@ -37,19 +36,45 @@ class Cache : public MemObject
                                             true : false,
                                             accesses);
         bool wb_required = insert_info.first;
-        // Addr wb_addr = insert_info.second;
+        Addr wb_addr = insert_info.second;
 
+        // If there is a write-back miss, the cache can allocate the block imme.
+        // For any read/write miss, the cache needs to load the block from lower level.
         if (req.req_type != Request::Request_Type::WRITE_BACK)
         {
             ++num_misses;
             ++num_loads;
+
+            // Send a loading request to next level.
+            if (next_level != nullptr)
+            {
+                Request req;
+
+                req.addr = aligned_addr; // Address of the missed block.
+                req.req_type = Request::Request_Type::READ; // Loading
+
+                next_level->send(req);
+            }
         }
 
+        // Send a write-back request to next level if there is an eviction.
         if (wb_required)
         {
             ++num_evicts;
+
+            if (next_level != nullptr)
+            {
+                Request req;
+
+                req.addr = wb_addr; // Address of the evicted block.
+                req.req_type = Request::Request_Type::WRITE_BACK;
+
+                next_level->send(req);
+            }
 	}
     }
+
+    void setNextLevel(Cache *_next_level) { next_level = _next_level; }
 
 //  protected:
     Tick accesses = 0; // We are using this for LRU policy.
@@ -60,7 +85,8 @@ class Cache : public MemObject
     uint64_t num_hits = 0;
 
     LRUSetWayAssocTags tags;
-    LRUFATags fa_tags;
+
+    Cache *next_level = nullptr;
 };
 /*
 struct OnChipToOffChip{}; // Next level is off-chip

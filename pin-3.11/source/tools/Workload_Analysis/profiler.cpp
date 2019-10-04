@@ -23,8 +23,11 @@ KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
 // Simulation components
 static const unsigned NUM_CORES = 1;
 
-Config *cfg;;
+Config *cfg;
+
 BP::Branch_Predictor *bp;
+
+System::MMU *mmu;
 std::vector<CacheSimulator::Cache*> caches;
 
 static bool start_sim = false;
@@ -34,7 +37,7 @@ static void increCount() { ++insn_count;
                            if (insn_count == 10000000000) {start_sim = true; }
                            if (insn_count == 30000000000)
                            {
-                               std::cout << "\nNumber of instructions: " << insn_count << "\n";
+                               // std::cout << "\nNumber of instructions: " << insn_count << "\n";
                                // std::cout << "Correctness rate: " << bp->perf() << "%.\n";
                                std::cout << "L1D-Cache Num Loads: " << caches[0]->num_loads << "\n";
                                std::cout << "L1D-Cache Num Evicts: " << caches[0]->num_evicts << "\n";
@@ -45,6 +48,21 @@ static void increCount() { ++insn_count;
                                                (float(caches[0]->num_hits) + 
                                                 float(caches[0]->num_misses)) * 100;
                                std::cout << "L1D-Cache Hit Rate: " << hit_rate << "\n";
+
+                               std::cout << "L2-Cache Num Loads: " 
+                                         << caches[0]->next_level->num_loads << "\n";
+                               std::cout << "L2-Cache Num Evicts: " 
+                                         << caches[0]->next_level->num_evicts << "\n";
+                               std::cout << "L2-Cache Num Hits: " 
+                                         << caches[0]->next_level->num_hits << "\n";
+                               std::cout << "L2-Cache Num Misses: " 
+                                         << caches[0]->next_level->num_misses << "\n";
+
+                               hit_rate = float(caches[0]->next_level->num_hits) /
+                                          (float(caches[0]->next_level->num_hits) + 
+                                           float(caches[0]->next_level->num_misses)) * 100;
+                               std::cout << "L2-Cache Hit Rate: " << hit_rate << "\n";
+
                                exit(0);
                            } }
 
@@ -82,7 +100,13 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
     req.addr = mem_addr;
 
     // TODO, sending to Cache
-    caches[0]->send(req);
+    for (unsigned i = 0; i < NUM_CORES; i++)
+    {
+        req.core_id = i;
+        mmu->va2pa(req);
+
+        caches[i]->send(req);
+    }
 }
 
 //Function: Other function
@@ -204,6 +228,9 @@ main(int argc, char *argv[])
 
     cfg = new Config(CfgFile.Value());
 
+    // System-level
+    mmu = new System::MMU(NUM_CORES);
+
     // First-level cache must be enabled
     assert(cfg->caches[int(Config::Cache_Level::L1D)].valid);
     ofstream prof_cfg("profiling.cfg");
@@ -234,6 +261,12 @@ main(int argc, char *argv[])
     }
     if (cfg->caches[int(Config::Cache_Level::L2)].valid)
     {
+        CacheSimulator::Cache *l2 = new CacheSimulator::Cache(Config::Cache_Level::L2, *cfg);
+        for (unsigned i = 0; i < NUM_CORES; i++)
+        {
+            caches[i]->setNextLevel(l2);
+        }
+
         prof_cfg << "L2-Cache is enabled. \n";
         prof_cfg << "L2-Cache size (KB): "
                  << cfg->caches[int(Config::Cache_Level::L2)].size << "\n";
@@ -289,6 +322,7 @@ main(int argc, char *argv[])
         { prof_cfg << "eDRAM-Cache is private (per core). \n\n"; }
         else { prof_cfg << "eDRAM-Cache is shared. \n\n"; }
     }
+    prof_cfg.close();
 
     // Let's keep tournament fixed.
     bp = new BP::Tournament();

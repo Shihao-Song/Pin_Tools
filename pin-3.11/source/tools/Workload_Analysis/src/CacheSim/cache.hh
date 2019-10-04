@@ -84,10 +84,11 @@ class Cache : public MemObject
     uint64_t num_misses = 0;
     uint64_t num_hits = 0;
 
-    LRUSetWayAssocTags tags;
+    LRUSetWayAssocTags tags; // TODO, change it to a pointer (Tags *)
 
     Cache *next_level = nullptr;
 };
+
 /*
 struct OnChipToOffChip{}; // Next level is off-chip
 struct OnChipToOnChip{}; // Next level is still on-chip

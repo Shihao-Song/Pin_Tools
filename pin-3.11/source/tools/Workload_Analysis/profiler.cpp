@@ -12,10 +12,10 @@
  *     2) Number of (new) touched pages/page faults; (Not yet finished)
  *     3) Number of correct branch predictions; (Finished)
  *     4) Number of in-correct branch predictions; (Finished)
- *     5) Number of cache hits (all cache levels); (Not yet finished)
- *     6) Number of cache misses (all cache levels); (Not yet finished)
- *     7) Number of cache loads (all cache levels); (Not yet finished)
- *     8) Number of cache evictions (all cache levels); (Not yet finished)
+ *     5) Number of cache hits (all cache levels); (Finished)
+ *     6) Number of cache misses (all cache levels); (Finished)
+ *     7) Number of cache loads (all cache levels); (Finished)
+ *     8) Number of cache evictions (all cache levels); (Finished)
  * */
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");

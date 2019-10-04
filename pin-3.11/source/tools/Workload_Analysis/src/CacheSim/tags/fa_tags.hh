@@ -4,9 +4,8 @@
 #include <assert.h>
 #include <unordered_map>
 
-#include "Sim/config.hh"
-#include "CacheSim/tags/cache_tags.hh"
-#include "CacheSim/tags/replacement_policies/fa_lru.hh"
+#include "cache_tags.hh"
+#include "replacement_policies/fa_lru.hh"
 
 namespace CacheSimulator
 {
@@ -16,20 +15,15 @@ class TagsWithFABlk : public Tags<FABlk>
     TagsWithFABlk(int level, Config &cfg) :
         Tags(level, cfg) {}
 };
+
 template<typename P>
 class FATags : public TagsWithFABlk
 {
   protected:
-    typedef uint64_t Addr;
-    typedef uint64_t Tick;
-
-    typedef Simulator::Config Config;
-
-  protected:
     FABlk *head;
     FABlk *tail;
 
-    std::unique_ptr<P> policy;
+    P policy;
 
   protected:
     // To make block indexing faster, a hash based address mapping is used
@@ -38,8 +32,7 @@ class FATags : public TagsWithFABlk
 
   public:
     FATags(int level, Config &cfg)
-        : TagsWithFABlk(level, cfg),
-          policy(new P())
+        : TagsWithFABlk(level, cfg)
     {
         tagsInit();
     }
@@ -55,7 +48,7 @@ class FATags : public TagsWithFABlk
         if (blk != nullptr)
         {
             hit = true;
-            policy->upgrade(blk, cur_clk);
+            policy.upgrade(blk, cur_clk);
 
             if (modify) { blk->setDirty(); }
         }
@@ -65,52 +58,20 @@ class FATags : public TagsWithFABlk
 
     std::pair<bool, Addr> insertBlock(Addr addr, bool modify, Tick cur_clk = 0) override
     {
-        auto [wb_required, victim_addr, victim] = findVictim(addr);
+        auto ret = findVictim(addr);
+
+        bool wb_required = ret.wb_required;
+        Addr victim_addr = ret.wb_addr;
+        FABlk *victim = ret.victim;
 
         if (modify) { victim->setDirty(); }	
 	victim->insert(extractTag(addr));
-        policy->upgrade(victim, cur_clk);
+        policy.upgrade(victim, cur_clk);
         tagHash[victim->tag] = victim;
 
         return std::make_pair(wb_required, victim_addr);
     }
-
-    void recordMMUCommu(Addr block_addr,
-                        int core_id,
-                        Addr eip,
-                        std::function<void(Simulator::Request&)> mmu_cb) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        FABlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-        blk->clearMMUCommu();
-        blk->recordMMUCommu(core_id, eip, mmu_cb);
-    }
-
-    std::tuple<int,
-               Addr,
-               std::function<void(Simulator::Request&)>> 
-        retriMMUCommu(Addr block_addr) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        FABlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-
-        return blk->retriMMUCommu();
-    }
-
-    void clearMMUCommu(Addr block_addr) override
-    {
-        Addr blk_aligned_addr = blkAlign(block_addr);
-
-        FABlk *blk = findBlock(blk_aligned_addr);
-        assert(blk);
-
-        blk->clearMMUCommu();
-    }
-
+        
     void printTagInfo() override
     {
         std::cout << "Number of blocks: " << num_blocks << "\n";
@@ -122,7 +83,6 @@ class FATags : public TagsWithFABlk
         {
             blks[i].invalidate();
             blks[i].clearDirty();
-            blks[i].clearMMUCommu();
             blks[i].when_touched = 0;
         }
         tagHash.clear();
@@ -146,9 +106,9 @@ class FATags : public TagsWithFABlk
         tail->prev = &(blks[num_blocks - 2]);
         tail->next = nullptr;
 
-        policy->blks = blks.get();
-        policy->head = &head;
-        policy->tail = &tail;
+        // policy.blks = &blks;
+        policy.head = &head;
+        policy.tail = &tail;
     }
     
     Addr extractTag(Addr addr) const override
@@ -167,8 +127,8 @@ class FATags : public TagsWithFABlk
 
         Addr tag = extractTag(addr);
 
-	if (auto iter = tagHash.find(tag);
-            iter != tagHash.end())
+        auto iter = tagHash.find(tag);
+	if (iter != tagHash.end())
         {
             blk = (*iter).second;
 
@@ -180,9 +140,12 @@ class FATags : public TagsWithFABlk
         return blk;
     }
 
-    std::tuple<bool, Addr, FABlk*> findVictim(Addr addr) override
+    victimRet findVictim(Addr addr) override
     {
-        auto [wb_required, victim] = policy->findVictim(addr);
+        auto ret = policy.findVictim(addr);
+
+        bool wb_required = ret.first;
+        FABlk *victim = ret.second;
         assert(victim != nullptr);
 
         Addr victim_addr = MaxAddr;
@@ -198,7 +161,7 @@ class FATags : public TagsWithFABlk
             invalidate(victim);
         }
 
-        return std::make_tuple(wb_required, victim_addr, victim);
+        return victimRet{wb_required, victim_addr, victim};
     }
 
     void invalidate(FABlk* victim) override
@@ -206,7 +169,7 @@ class FATags : public TagsWithFABlk
         assert(tagHash.erase(victim->tag));
         victim->invalidate();
         victim->clearDirty();
-        policy->downgrade(victim);
+        policy.downgrade(victim);
     }
 };
 

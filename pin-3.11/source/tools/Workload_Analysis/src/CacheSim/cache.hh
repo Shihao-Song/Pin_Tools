@@ -5,6 +5,7 @@
 
 #include "tags/cache_tags.hh"
 #include "tags/set_assoc_tags.hh"
+#include "tags/fa_tags.hh"
 
 #include <string>
 
@@ -14,7 +15,8 @@ namespace CacheSimulator
 class Cache : public MemObject
 {
   public:
-    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg) { }
+    Cache(Config::Cache_Level lev, Config &cfg) : tags(int(lev), cfg),
+                                                  fa_tags(int(lev), cfg) { }
 
     void send(Request &req) override
     {
@@ -58,6 +60,7 @@ class Cache : public MemObject
     uint64_t num_hits = 0;
 
     LRUSetWayAssocTags tags;
+    LRUFATags fa_tags;
 };
 /*
 struct OnChipToOffChip{}; // Next level is off-chip

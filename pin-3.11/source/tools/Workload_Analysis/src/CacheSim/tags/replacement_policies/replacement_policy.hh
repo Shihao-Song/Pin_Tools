@@ -37,7 +37,7 @@ class FAReplacementPolicy
 
     virtual std::pair<bool, FABlk*> findVictim(Addr addr) = 0;
 
-    FABlk *blks;
+    //std::vector<FABlk *> *blks;
 
     FABlk **head;
     FABlk **tail;

@@ -13,4 +13,6 @@
 #include "Sim/mem_object.hh"
 #include "CacheSim/cache.hh"
 
+#include "System/mmu.hh"
+
 #endif

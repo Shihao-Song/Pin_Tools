@@ -1,8 +1,11 @@
 #ifndef __SIM_STATS_HH__
 #define __SIM_STATS_HH__
 
+#include <fstream>
 #include <string>
 #include <vector>
+
+using std::ofstream;
 
 class Stats
 {
@@ -19,10 +22,14 @@ class Stats
 
     void outputStats(std::string output)
     {
+        ofstream out;
+        out.open(output.c_str());
+
         for (auto entry : printables)
         {
-            std::cout << entry;
+            out << entry;
         }
+        out << std::flush;
     }
 };
 

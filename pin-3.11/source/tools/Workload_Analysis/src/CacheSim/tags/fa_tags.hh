@@ -74,6 +74,7 @@ class FATags : public TagsWithFABlk
         
     void printTagInfo() override
     {
+        std::cout << "Fully Associative. \n";
         std::cout << "Number of blocks: " << num_blocks << "\n";
     }
 

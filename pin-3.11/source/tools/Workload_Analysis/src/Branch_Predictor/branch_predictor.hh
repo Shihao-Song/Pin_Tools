@@ -3,6 +3,8 @@
 
 #include "branch_predictor_constants.hh"
 #include "../Sim/instruction.hh"
+#include "../Sim/stats.hh"
+#include "../Sim/util.hh"
 
 namespace BP
 {
@@ -21,6 +23,11 @@ class Branch_Predictor
     // The correctness of the branch prediction.
     float perf() { return float(num_correct_preds) / 
                  (float(num_correct_preds) + float(num_incorrect_preds)) * 100; }
+
+    virtual void registerStats(Stats &stats)
+    {
+        stats.registerStats("Branch Predictor: Correctness  = " + to_string(perf()) + "%");
+    }
 
   protected:
     class Sat_Counter

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "random.hh"
+#include "../Sim/stats.hh"
 
 namespace System
 {
@@ -64,8 +65,10 @@ class MMU
   protected:
     std::vector<Mapper> mappers;
 
+    std::unordered_map<Addr, bool> pages; // All the touched pages.
+    std::unordered_map<Addr, bool> first_touch_instructions; // All first-touch instructions.
+
   public:
-    typedef uint64_t Addr;
 
     MMU(int num_cores)
     {
@@ -79,6 +82,31 @@ class MMU
     {
         Addr pa = mappers[req.core_id].va2pa(req.addr);
         req.addr = pa;
+
+        // Get PC
+        Addr pc = req.eip;
+        // Get page ID
+        Addr page_id = req.addr >> Mapper::va_page_shift;
+
+        // Check if it is a page fault.
+        auto p_iter = pages.find(page_id);
+        if (p_iter == pages.end())
+        {
+            pages.insert({page_id,true}); // Insert a new page
+
+            auto i_iter = first_touch_instructions.find(pc);
+            if (i_iter == first_touch_instructions.end())
+            {
+                first_touch_instructions.insert({pc,true});
+            }
+        }
+    }
+
+    virtual void registerStats(Stats &stats)
+    {
+        stats.registerStats("MMU: Number of pages  = " + to_string(pages.size()));
+        stats.registerStats("MMU: Number of first-touch instructions  = " + 
+                            to_string(first_touch_instructions.size()));
     }
 };
 }

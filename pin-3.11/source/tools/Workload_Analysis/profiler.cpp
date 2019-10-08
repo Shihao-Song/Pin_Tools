@@ -6,10 +6,10 @@
 
 /*
  * Profiling Tool: 
- * (1) Divide the entire program into intervals (250M instructions);
+ * (1) Divide the entire program into intervals (100M instructions);
  * (2) For each interval, record the followings (not limited):
- *     1) Number of (new) first-touch instructions; (Not yet finished)
- *     2) Number of (new) touched pages/page faults; (Not yet finished)
+ *     1) Number of (new) first-touch instructions; (Finished)
+ *     2) Number of (new) touched pages/page faults; (Finished)
  *     3) Number of correct branch predictions; (Finished)
  *     4) Number of in-correct branch predictions; (Finished)
  *     5) Number of cache hits (all cache levels); (Finished)
@@ -17,13 +17,24 @@
  *     7) Number of cache loads (all cache levels); (Finished)
  *     8) Number of cache evictions (all cache levels); (Finished)
  * */
+// KNOB<std::string> (KNOB_MODE_WRITEONCE, "pintool",
+//    "p", "", "specify profiling output directory");
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");
 
 // Simulation components
 static const unsigned NUM_CORES = 1;
+//static const Count SKIP = 10000000000;
+//static const Count END = 20000000000;
+
 static const Count SKIP = 10000000000;
-static const Count END = 30000000000;
+static const Count PROFILING_LIMIT = 10000000;
+static const Count INFERENCE_LIMIT = 100000000;
+static const Count NUM_RUNS = 100;
+//static const Count END = 3000000000;
+
+//static const Count SKIP = 100000000;
+//static const Count END = 1000000000;
 
 Config *cfg;
 
@@ -37,14 +48,42 @@ std::vector<MemObject*> l3;
 std::vector<MemObject*> eDRAM;
 
 static bool start_sim = false;
+static unsigned cur_run = 0;
 // static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount() { ++insn_count;
-                           if (insn_count == SKIP) {start_sim = true; }
-                           if (insn_count == END)
+                           if (insn_count < SKIP) { return; }
+                           if (insn_count == SKIP) { start_sim = true; return; }
+                           if (cur_run == 0 && insn_count == (SKIP + PROFILING_LIMIT))
                            {
+                               std::cout << insn_count << "\n";
+                               std::string page_info_out = "profiling/10M.csv";
+                               mmu->printPageInfo(page_info_out);
+                               mmu->reInitialize();
+                               cur_run++;
+
+                               return;
+                           }
+
+                           if (cur_run > 0 && cur_run <= NUM_RUNS && 
+                               insn_count == (SKIP + PROFILING_LIMIT + 
+                                              cur_run * INFERENCE_LIMIT))
+                           {
+                               std::cout << insn_count << "\n";
+                               std::string page_info_out = "profiling/" + 
+                                                           to_string(cur_run) + "00M.csv";
+                               mmu->printPageInfo(page_info_out);
+                               mmu->reInitialize();
+                               cur_run++;
+
+                               return;
+                           }
+
+                           if (cur_run > NUM_RUNS) { exit(0); }
+/*
                                Stats stat;
-                               stat.registerStats("Number of instructions: " + to_string(END-SKIP));
+                               stat.registerStats("Number of instructions: " 
+                                                  + to_string(END-SKIP));
 
                                bp->registerStats(stat);
                                mmu->registerStats(stat);
@@ -55,10 +94,10 @@ static void increCount() { ++insn_count;
                                for (auto cache : eDRAM) { cache->registerStats(stat); }
 
                                stat.outputStats("profiling.stat");
-
                                // Better to release all memory.
                                exit(0);
-                           } }
+*/
+}
 
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
@@ -72,7 +111,7 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
     instr.setTaken(taken);
 
     // Sending to the branch predictor.
-    bp->predict(instr, insn_count); // I'm using insn_count as time-stamp.
+//    bp->predict(instr, insn_count); // I'm using insn_count as time-stamp.
 }
 
 // Function: memory access simulation
@@ -99,7 +138,7 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
         req.core_id = i;
         mmu->va2pa(req);
 
-        l1[i]->send(req);
+//        l1[i]->send(req);
     }
 }
 
@@ -122,7 +161,8 @@ static void instructionSim(INS ins)
         // A branch has two path: a taken path and a fall-through path.
         INS_InsertCall(
             ins,
-            IPOINT_TAKEN_BRANCH, // Insert a call on the taken edge of the control-flow instruction
+            IPOINT_TAKEN_BRANCH, // Insert a call on the taken edge 
+                                 // of the control-flow instruction
             (AFUNPTR)bpSim,
             IARG_ADDRINT, INS_Address(ins),
             IARG_BOOL, TRUE,
@@ -233,7 +273,8 @@ main(int argc, char *argv[])
     {
         for (unsigned i = 0; i < NUM_CORES; i++)
         {
-            l1.emplace_back(new CacheSimulator::SetWayAssocCache(Config::Cache_Level::L1D, *cfg));
+            l1.emplace_back(new 
+                CacheSimulator::SetWayAssocCache(Config::Cache_Level::L1D, *cfg));
             l1[i]->setId(i);
         }
 
@@ -259,13 +300,15 @@ main(int argc, char *argv[])
     {
         if (cfg->caches[int(Config::Cache_Level::L2)].shared)
         {
-            l2.emplace_back(new CacheSimulator::SetWayAssocCache(Config::Cache_Level::L2, *cfg));
+            l2.emplace_back(new 
+                CacheSimulator::SetWayAssocCache(Config::Cache_Level::L2, *cfg));
         }
         else
         {
             for (unsigned i = 0; i < NUM_CORES; i++)
             {
-                l2.emplace_back(new CacheSimulator::SetWayAssocCache(Config::Cache_Level::L2, *cfg));
+                l2.emplace_back(new 
+                    CacheSimulator::SetWayAssocCache(Config::Cache_Level::L2, *cfg));
                 l2[i]->setId(i);
             }
         }
@@ -292,13 +335,15 @@ main(int argc, char *argv[])
     {
         if (cfg->caches[int(Config::Cache_Level::L3)].shared)
         {
-            l3.emplace_back(new CacheSimulator::SetWayAssocCache(Config::Cache_Level::L3, *cfg));
+            l3.emplace_back(new 
+                CacheSimulator::SetWayAssocCache(Config::Cache_Level::L3, *cfg));
         }
         else
         {
             for (unsigned i = 0; i < NUM_CORES; i++)
             {
-                l3.emplace_back(new CacheSimulator::SetWayAssocCache(Config::Cache_Level::L3, *cfg));
+                l3.emplace_back(new 
+                    CacheSimulator::SetWayAssocCache(Config::Cache_Level::L3, *cfg));
                 l3[i]->setId(i);
             }
         }
@@ -325,13 +370,15 @@ main(int argc, char *argv[])
         if (cfg->caches[int(Config::Cache_Level::eDRAM)].shared)
         {
             // TODO, I assume all the eDRAMs are FA and write-only.
-            eDRAM.emplace_back(new CacheSimulator::WOFACache(Config::Cache_Level::eDRAM, *cfg));
+            eDRAM.emplace_back(new 
+                CacheSimulator::WOFACache(Config::Cache_Level::eDRAM, *cfg));
         }
         else
         {
             for (unsigned i = 0; i < NUM_CORES; i++)
             {
-                eDRAM.emplace_back(new CacheSimulator::FACache(Config::Cache_Level::eDRAM, *cfg));
+                eDRAM.emplace_back(new 
+                    CacheSimulator::FACache(Config::Cache_Level::eDRAM, *cfg));
                 eDRAM[i]->setId(i);
             }
         }
@@ -355,9 +402,9 @@ main(int argc, char *argv[])
     }
     prof_cfg.close();
 
-    // Connecting all levels of caches.
-    l1[0]->setNextLevel(l2[0]);
-    l2[0]->setNextLevel(eDRAM[0]);
+    // TODO, Connecting all levels of caches. Still testing CacheSim...
+    // l1[0]->setNextLevel(l2[0]);
+    // l2[0]->setNextLevel(eDRAM[0]);
 
     // Let's keep tournament fixed.
     bp = new BP::Tournament();

@@ -57,7 +57,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     {
         bool hit = false;
         Addr blk_aligned_addr = blkAlign(addr);
-        // std::cout << "Aligned address: " << blk_aligned_addr << "; ";
+        // std::cout << "Aligned address: " << blk_aligned_addr << "\n";
 
         SetWayBlk *blk = findBlock(blk_aligned_addr);
 
@@ -84,6 +84,15 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         if (modify) { victim->setDirty(); }
         victim->insert(extractTag(addr));
         policy.upgrade(victim, cur_clk);
+
+        std::cout << "Inserted: " << addr << "\n";
+        std::cout << "Set: " << victim->getSet() << "\n";
+        if (wb_required)
+        {
+            std::cout << "Evicted: " << victim_addr << "\n";
+        }
+        std::cout << "\n";
+        if (wb_required) { exit(0); }
 
         return std::make_pair(wb_required, victim_addr);
     }
@@ -138,7 +147,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     {
         // Extract block tag
         Addr tag = extractTag(addr);
-        // std::cout << "Set: " << extractSet(addr) << "; ";
+        // std::cout << "Set: " << extractSet(addr) << "\n";
 
         // Extract the set
         const std::vector<SetWayBlk *> set = sets[extractSet(addr)];

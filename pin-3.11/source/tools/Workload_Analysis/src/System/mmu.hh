@@ -2,12 +2,16 @@
 #define __MMU_HH__
 
 #include <algorithm>
+#include <fstream>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "random.hh"
 #include "../Sim/stats.hh"
+
+using std::ofstream;
 
 namespace System
 {
@@ -65,8 +69,22 @@ class MMU
   protected:
     std::vector<Mapper> mappers;
 
-    std::unordered_map<Addr, bool> pages; // All the touched pages.
-    std::unordered_map<Addr, bool> first_touch_instructions; // All first-touch instructions.
+    struct Page_Info
+    {
+        Addr page_id;
+
+        // The instruction that brings in this page.
+        Addr first_touch_instruction;
+
+        Count accesses;
+
+        bool operator > (const Page_Info &info) const
+        {
+            return (accesses > info.accesses);
+        }
+    };    
+    std::unordered_map<Addr, Page_Info> pages; // All the touched pages.
+//    std::unordered_map<Addr, bool> first_touch_instructions; // All first-touch instructions.
 
   public:
 
@@ -92,21 +110,52 @@ class MMU
         auto p_iter = pages.find(page_id);
         if (p_iter == pages.end())
         {
-            pages.insert({page_id,true}); // Insert a new page
+            pages.insert({page_id, {page_id, pc, 1}}); // Insert a new page
 
-            auto i_iter = first_touch_instructions.find(pc);
-            if (i_iter == first_touch_instructions.end())
-            {
-                first_touch_instructions.insert({pc,true});
-            }
         }
+        else
+        {
+            (p_iter->second).accesses++;
+        }
+    }
+
+    virtual void reInitialize()
+    {
+        for (std::unordered_map<Addr,Page_Info>::iterator iter = pages.begin();
+             iter != pages.end();
+             iter++)
+        {
+            (iter->second).accesses = 0;
+        }
+    }
+
+    virtual void printPageInfo(std::string &output)
+    {
+        std::vector<Page_Info> MFU_pages;
+        for (auto iter : pages)
+        {
+            MFU_pages.push_back(iter.second);
+        }
+
+        std::sort(MFU_pages.begin(), MFU_pages.end(), std::greater<Page_Info>());
+
+        ofstream out(output.c_str());
+        for (auto page : MFU_pages)
+        {
+            out << page.page_id << ","
+                << page.first_touch_instruction << ","
+                << page.accesses << "\n";
+        }
+        out << std::flush;
+
+        out.close();
     }
 
     virtual void registerStats(Stats &stats)
     {
-        stats.registerStats("MMU: Number of pages  = " + to_string(pages.size()));
-        stats.registerStats("MMU: Number of first-touch instructions  = " + 
-                            to_string(first_touch_instructions.size()));
+//        stats.registerStats("MMU: Number of pages  = " + to_string(pages.size()));
+//        stats.registerStats("MMU: Number of first-touch instructions  = " + 
+//                            to_string(first_touch_instructions.size()));
     }
 };
 }

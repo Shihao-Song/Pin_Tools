@@ -28,6 +28,7 @@ class Cache : public MemObject
     {
         accesses++;
 
+        // std::cout << "Address: " << req.addr << "\n";
         auto access_info = tags.accessBlock(req.addr,
                                             req.req_type != Request::Request_Type::READ ?
                                             true : false,

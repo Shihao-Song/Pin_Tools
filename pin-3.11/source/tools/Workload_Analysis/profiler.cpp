@@ -4,6 +4,10 @@
 #include "pin.H"
 #include "src/simulation.h"
 
+// For creating directory.
+#include <sys/types.h>
+#include <sys/stat.h>
+
 /*
  * Profiling Tool: 
  * (1) Divide the entire program into intervals (100M instructions);
@@ -56,7 +60,6 @@ static void increCount() { ++insn_count;
                            if (insn_count == SKIP) { start_sim = true; return; }
                            if (cur_run == 0 && insn_count == (SKIP + PROFILING_LIMIT))
                            {
-                               std::cout << insn_count << "\n";
                                std::string page_info_out = "profiling/10M.csv";
                                mmu->printPageInfo(page_info_out);
                                mmu->reInitialize();
@@ -69,7 +72,6 @@ static void increCount() { ++insn_count;
                                insn_count == (SKIP + PROFILING_LIMIT + 
                                               cur_run * INFERENCE_LIMIT))
                            {
-                               std::cout << insn_count << "\n";
                                std::string page_info_out = "profiling/" + 
                                                            to_string(cur_run) + "00M.csv";
                                mmu->printPageInfo(page_info_out);
@@ -405,6 +407,9 @@ main(int argc, char *argv[])
     // TODO, Connecting all levels of caches. Still testing CacheSim...
     // l1[0]->setNextLevel(l2[0]);
     // l2[0]->setNextLevel(eDRAM[0]);
+
+    // TODO, tmp modifications, create a folder for page profiling 
+    mkdir("profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
     // Let's keep tournament fixed.
     bp = new BP::Tournament();

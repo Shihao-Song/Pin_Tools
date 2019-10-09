@@ -101,6 +101,9 @@ class MMU
         Addr pa = mappers[req.core_id].va2pa(req.addr);
         req.addr = pa;
 
+        // Let's only study one-core.
+        if (req.core_id != 0) { return; }
+
         // Get PC
         Addr pc = req.eip;
         // Get page ID

@@ -142,12 +142,12 @@ class MMU
         ofstream out(output.c_str());
         for (auto page : MFU_pages)
         {
-            if (page.accesses != 0)
-            {
+//            if (page.accesses != 0)
+//            {
                 out << page.page_id << ","
                     << page.first_touch_instruction << ","
                     << page.accesses << "\n";
-            }
+//            }
         }
         out << std::flush;
 

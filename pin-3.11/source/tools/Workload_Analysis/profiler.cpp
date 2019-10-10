@@ -27,7 +27,7 @@ KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");
 
 // Simulation components
-static const unsigned NUM_CORES = 1;
+static unsigned NUM_CORES = 1;
 //static const Count SKIP = 10000000000;
 //static const Count END = 20000000000;
 
@@ -72,7 +72,6 @@ static void increCount() { ++insn_count;
                                insn_count == (SKIP + PROFILING_LIMIT + 
                                               cur_run * INFERENCE_LIMIT))
                            {
-                               
                                // Print phase stats.
                                Stats stat;
                                stat.registerStats("Number of instructions: " 
@@ -270,6 +269,7 @@ main(int argc, char *argv[])
 
     // Read configuration files
     cfg = new Config(CfgFile.Value());
+    NUM_CORES = cfg->num_cores;
 
     // Initialize an MMU
     mmu = new System::MMU(NUM_CORES);
@@ -411,6 +411,10 @@ main(int argc, char *argv[])
     prof_cfg.close();
 
     // TODO, Connecting all levels of caches. Still testing CacheSim...
+    for (unsigned i = 0; i < NUM_CORES; i++)
+    {
+        l1[i]->setNextLevel(l2[0]);
+    }
     // l1[0]->setNextLevel(l2[0]);
     // l2[0]->setNextLevel(eDRAM[0]);
 

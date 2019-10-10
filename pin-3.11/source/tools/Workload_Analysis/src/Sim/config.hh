@@ -10,6 +10,8 @@ using std::ifstream; // Not sure why this works.
 class Config
 {
   public:
+    unsigned num_cores;
+
     unsigned block_size;
 
     enum Cache_Level : int
@@ -76,7 +78,11 @@ class Config
             assert(tokens.size() == 2 && "Only allow two tokens in one line");
 
             // Extract Timing Parameters
-            if(tokens[0] == "block_size")
+            if(tokens[0] == "num_cores")
+            {
+                num_cores = atoi(tokens[1].c_str());
+            }
+	    else if(tokens[0] == "block_size")
             {
                 block_size = atoi(tokens[1].c_str());
             }

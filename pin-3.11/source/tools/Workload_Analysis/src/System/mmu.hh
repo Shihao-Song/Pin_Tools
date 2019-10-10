@@ -101,9 +101,6 @@ class MMU
         Addr pa = mappers[req.core_id].va2pa(req.addr);
         req.addr = pa;
 
-        // Let's only study one-core.
-        if (req.core_id != 0) { return; }
-
         // Get PC
         Addr pc = req.eip;
         // Get page ID
@@ -159,9 +156,7 @@ class MMU
 
     virtual void registerStats(Stats &stats)
     {
-//        stats.registerStats("MMU: Number of pages  = " + to_string(pages.size()));
-//        stats.registerStats("MMU: Number of first-touch instructions  = " + 
-//                            to_string(first_touch_instructions.size()));
+        stats.registerStats("MMU: Number of pages  = " + to_string(pages.size()));
     }
 };
 }

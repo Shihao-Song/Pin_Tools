@@ -60,7 +60,7 @@ static void increCount() { ++insn_count;
                            if (insn_count == SKIP) { start_sim = true; return; }
                            if (cur_run == 0 && insn_count == (SKIP + PROFILING_LIMIT))
                            {
-                               std::string page_info_out = "profiling/10M.csv";
+                               std::string page_info_out = "page_profiling/10M.csv";
                                mmu->printPageInfo(page_info_out);
                                mmu->reInitialize();
                                cur_run++;
@@ -72,20 +72,11 @@ static void increCount() { ++insn_count;
                                insn_count == (SKIP + PROFILING_LIMIT + 
                                               cur_run * INFERENCE_LIMIT))
                            {
-                               std::string page_info_out = "profiling/" + 
-                                                           to_string(cur_run) + "00M.csv";
-                               mmu->printPageInfo(page_info_out);
-                               mmu->reInitialize();
-                               cur_run++;
-
-                               return;
-                           }
-
-                           if (cur_run > NUM_RUNS) { exit(0); }
-/*
+                               
+                               // Print phase stats.
                                Stats stat;
                                stat.registerStats("Number of instructions: " 
-                                                  + to_string(END-SKIP));
+                                                  + to_string(insn_count));
 
                                bp->registerStats(stat);
                                mmu->registerStats(stat);
@@ -94,11 +85,28 @@ static void increCount() { ++insn_count;
                                for (auto cache : l2) { cache->registerStats(stat); }
                                for (auto cache : l3) { cache->registerStats(stat); }
                                for (auto cache : eDRAM) { cache->registerStats(stat); }
+                               
+                               // Print page profilings
+                               std::string page_info_out = "page_profiling/" + 
+                                                           to_string(cur_run) + "00M.csv";
+                               mmu->printPageInfo(page_info_out);
+                               // Print phase stats
+                               std::string phase_stats_out = "phase_stats/" +
+                                                             to_string(cur_run) + "00M.csv";
+                               stat.outputStats(phase_stats_out);
 
-                               stat.outputStats("profiling.stat");
-                               // Better to release all memory.
+                               bp->reInitialize(); 
+                               mmu->reInitialize();
+                               for (auto cache : l1) { cache->reInitialize(); }
+ 
+                               cur_run++;
+                               return;
+                           }
+
+                           if (cur_run > NUM_RUNS)
+                           {
                                exit(0);
-*/
+                           }
 }
 
 // Function: branch predictor simulation
@@ -113,7 +121,7 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
     instr.setTaken(taken);
 
     // Sending to the branch predictor.
-//    bp->predict(instr, insn_count); // I'm using insn_count as time-stamp.
+    bp->predict(instr, insn_count); // I'm using insn_count as time-stamp.
 }
 
 // Function: memory access simulation
@@ -134,13 +142,12 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
     }
     req.addr = mem_addr;
 
-    // TODO, sending to Cache
     for (unsigned i = 0; i < NUM_CORES; i++)
     {
         req.core_id = i;
         mmu->va2pa(req);
 
-//        l1[i]->send(req);
+        l1[i]->send(req);
     }
 }
 
@@ -246,7 +253,6 @@ static void traceCallback(TRACE trace, VOID *v)
 static void printResults(int dummy, VOID *p)
 {
     std::cout << "Total number of instructions: " << insn_count << "\n";
-    // delete bp;
 }
 
 using std::ofstream;
@@ -408,11 +414,11 @@ main(int argc, char *argv[])
     // l1[0]->setNextLevel(l2[0]);
     // l2[0]->setNextLevel(eDRAM[0]);
 
-    // TODO, tmp modifications, create a folder for page profiling 
-    mkdir("profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir("page_profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir("phase_stats", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
     // Let's keep tournament fixed.
-    bp = new BP::Tournament();
+    bp = new BP::Two_Bit_Local();
 
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
     TRACE_AddInstrumentFunction(traceCallback, 0);

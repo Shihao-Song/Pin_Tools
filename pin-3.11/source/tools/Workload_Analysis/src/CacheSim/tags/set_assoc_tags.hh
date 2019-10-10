@@ -57,13 +57,15 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     {
         bool hit = false;
         Addr blk_aligned_addr = blkAlign(addr);
-        // std::cout << "Aligned address: " << blk_aligned_addr << "\n";
-
+//        std::cout << "Aligned address: " << blk_aligned_addr << "; ";
+//        std::cout << "Set: " << extractSet(blk_aligned_addr) << "; ";
         SetWayBlk *blk = findBlock(blk_aligned_addr);
 
         // If there is hit, upgrade
         if (blk != nullptr)
         {
+//            std::cout << "Hit! \n";
+
             hit = true;
             policy.upgrade(blk, cur_clk);
 
@@ -84,16 +86,17 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         if (modify) { victim->setDirty(); }
         victim->insert(extractTag(addr));
         policy.upgrade(victim, cur_clk);
-
-        std::cout << "Inserted: " << addr << "\n";
-        std::cout << "Set: " << victim->getSet() << "\n";
+/*
+        std::cout << "Inserted: " << addr << "; ";
         if (wb_required)
         {
             std::cout << "Evicted: " << victim_addr << "\n";
         }
-        std::cout << "\n";
-        if (wb_required) { exit(0); }
-
+        else
+        {
+            std::cout << "\n";
+        }
+*/
         return std::make_pair(wb_required, victim_addr);
     }
 

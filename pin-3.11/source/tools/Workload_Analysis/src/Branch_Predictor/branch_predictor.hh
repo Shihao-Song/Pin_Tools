@@ -29,6 +29,12 @@ class Branch_Predictor
         stats.registerStats("Branch Predictor: Correctness  = " + to_string(perf()) + "%");
     }
 
+    virtual void reInitialize()
+    {
+        num_correct_preds = 0;
+        num_incorrect_preds = 0;
+    }
+
   protected:
     class Sat_Counter
     {

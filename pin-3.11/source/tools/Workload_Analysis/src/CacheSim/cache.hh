@@ -28,7 +28,18 @@ class Cache : public MemObject
     {
         accesses++;
 
-        // std::cout << "Address: " << req.addr << "\n";
+/*
+        std::cout << level_name << "; ";
+        std::cout << "Address: " << req.addr << "; ";
+        if (req.req_type == Request::Request_Type::READ)
+        {
+            std::cout << "R; ";
+        }
+        else
+        {
+            std::cout << "W; ";
+        }
+*/
         auto access_info = tags.accessBlock(req.addr,
                                             req.req_type != Request::Request_Type::READ ?
                                             true : false,
@@ -80,6 +91,20 @@ class Cache : public MemObject
                 next_level->send(req);
             }
 	}
+    }
+
+    void reInitialize() override
+    {
+        tags.reInitialize();
+
+        accesses = 0;
+
+        num_hits = 0;
+        num_misses = 0;
+        num_loads = 0;
+        num_evicts = 0;
+
+        if (next_level != nullptr) { next_level->reInitialize(); }
     }
 
     void registerStats(Stats &stats) override

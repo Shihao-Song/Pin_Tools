@@ -51,11 +51,12 @@ std::vector<MemObject*> l2;
 std::vector<MemObject*> l3;
 std::vector<MemObject*> eDRAM;
 
-static bool start_sim = false;
+static bool start_sim = true;
 static unsigned cur_run = 0;
 // static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount() { ++insn_count;
+                           return; // TODO, don't forget to set start_sim to false
                            if (insn_count < SKIP) { return; }
                            if (insn_count == SKIP) { start_sim = true; return; }
                            if (cur_run == 0 && insn_count == (SKIP + PROFILING_LIMIT))
@@ -251,7 +252,27 @@ static void traceCallback(TRACE trace, VOID *v)
 
 static void printResults(int dummy, VOID *p)
 {
-    std::cout << "Total number of instructions: " << insn_count << "\n";
+    // Print phase stats.
+    Stats stat;
+    stat.registerStats("Number of instructions: " 
+                       + to_string(insn_count));
+
+    bp->registerStats(stat);
+    mmu->registerStats(stat);
+
+    for (auto cache : l1) { cache->registerStats(stat); }
+    for (auto cache : l2) { cache->registerStats(stat); }
+    for (auto cache : l3) { cache->registerStats(stat); }
+    for (auto cache : eDRAM) { cache->registerStats(stat); }
+
+    // Print page profilings
+    std::string page_info_out = "page_profiling/" + 
+			        to_string(cur_run) + "00M.csv";
+    mmu->printPageInfo(page_info_out);
+    // Print phase stats
+    std::string phase_stats_out = "phase_stats/" +
+                                  to_string(cur_run) + "00M.csv";
+    stat.outputStats(phase_stats_out);
 }
 
 using std::ofstream;

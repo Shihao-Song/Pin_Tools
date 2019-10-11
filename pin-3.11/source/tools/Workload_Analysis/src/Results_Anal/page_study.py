@@ -48,16 +48,14 @@ def pageAccess(profiling, inference, oFile):
             v = v + int(page_info.num_accesses)
         u = u + int(page_info.num_accesses)
 
-    print >> oFile, w, v, u
+    print >> oFile, w, v, u, float(v)/float(u)*100
 
 for b in benchmarks:
-    if "bwaves" not in b:
-        continue
 
     if not exists("page_info"):
         makedirs("page_info")
     output = open(join("page_info", b.split("/")[-1]), "w")
-
+    
     profiling_file = join(b, "10M.csv")
     for i in range(1,101):
         inference_file = join(b, str(i*100)+"M.csv")

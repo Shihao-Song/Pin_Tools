@@ -266,12 +266,10 @@ static void printResults(int dummy, VOID *p)
     for (auto cache : eDRAM) { cache->registerStats(stat); }
 
     // Print page profilings
-    std::string page_info_out = "page_profiling/" + 
-			        to_string(cur_run) + "00M.csv";
+    std::string page_info_out = "page_info.txt"; 
     mmu->printPageInfo(page_info_out);
     // Print phase stats
-    std::string phase_stats_out = "phase_stats/" +
-                                  to_string(cur_run) + "00M.csv";
+    std::string phase_stats_out = "stats.txt";
     stat.outputStats(phase_stats_out);
 }
 
@@ -394,6 +392,7 @@ main(int argc, char *argv[])
         { prof_cfg << "L3-Cache is private (per core). \n\n"; }
         else { prof_cfg << "L3-Cache is shared. \n\n"; }
     }
+
     if (cfg->caches[int(Config::Cache_Level::eDRAM)].valid)
     {
         if (cfg->caches[int(Config::Cache_Level::eDRAM)].shared)
@@ -439,8 +438,8 @@ main(int argc, char *argv[])
     // l1[0]->setNextLevel(l2[0]);
     // l2[0]->setNextLevel(eDRAM[0]);
 
-    mkdir("page_profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    mkdir("phase_stats", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+//    mkdir("page_profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+//    mkdir("phase_stats", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
     // Let's keep tournament fixed.
     bp = new BP::Two_Bit_Local();

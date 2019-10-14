@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+using std::ofstream;
+
 /*
  * Profiling Tool: 
  * (1) Divide the entire program into intervals (100M instructions);
@@ -21,8 +23,8 @@
  *     7) Number of cache loads (all cache levels); (Finished)
  *     8) Number of cache evictions (all cache levels); (Finished)
  * */
-// KNOB<std::string> (KNOB_MODE_WRITEONCE, "pintool",
-//    "p", "", "specify profiling output directory");
+KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
+    "o", "", "specify output trace file name");
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "i", "", "specify system configuration file name");
 
@@ -51,14 +53,21 @@ std::vector<MemObject*> l2;
 std::vector<MemObject*> l3;
 std::vector<MemObject*> eDRAM;
 
-static bool start_sim = true;
+static bool start_sim = false;
 static unsigned cur_run = 0;
 // static bool end_sim = false; 
 static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
+ofstream trace_out;
 static void increCount() { ++insn_count;
-                           return; // TODO, don't forget to set start_sim to false
+//                           return; // TODO, don't forget to set start_sim to false
                            if (insn_count < SKIP) { return; }
                            if (insn_count == SKIP) { start_sim = true; return; }
+                           if (insn_count == SKIP + 1000000000)
+                           {
+                               trace_out << std::flush;
+                               exit(0); 
+                           }
+                           return;
                            if (cur_run == 0 && insn_count == (SKIP + PROFILING_LIMIT))
                            {
                                std::string page_info_out = "page_profiling/10M.csv";
@@ -109,11 +118,15 @@ static void increCount() { ++insn_count;
                            }
 }
 
+static unsigned num_exes_before_mem = 0;
 // Function: branch predictor simulation
 static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 {
     if (!start_sim) { return; }
-    
+
+    num_exes_before_mem++;
+    return;
+
     Instruction instr;
 
     instr.setPC(eip);
@@ -128,6 +141,17 @@ static void bpSim(ADDRINT eip, BOOL taken, ADDRINT target)
 static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
     if (!start_sim) { return; }
+
+    if (num_exes_before_mem != 0)
+    {
+        trace_out << num_exes_before_mem << " ";
+        num_exes_before_mem = 0;
+    }
+    trace_out << eip << " ";
+    if (is_store) { trace_out << "S "; }
+    else { trace_out << "L "; }
+    trace_out << mem_addr << "\n";
+    return;
 
     Request req;
 
@@ -154,6 +178,11 @@ static void memAccessSim(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 pa
 //Function: Other function
 static void nonBranchNorMem()
 {
+    if (!start_sim) { return; }
+
+    num_exes_before_mem++;
+    return;
+
 //    std::cout << insn_count << ": E\n";
 }
 
@@ -252,6 +281,7 @@ static void traceCallback(TRACE trace, VOID *v)
 
 static void printResults(int dummy, VOID *p)
 {
+    /*
     // Print phase stats.
     Stats stat;
     stat.registerStats("Number of instructions: " 
@@ -271,9 +301,9 @@ static void printResults(int dummy, VOID *p)
     // Print phase stats
     std::string phase_stats_out = "stats.txt";
     stat.outputStats(phase_stats_out);
+    */
 }
 
-using std::ofstream;
 int
 main(int argc, char *argv[])
 {
@@ -285,6 +315,7 @@ main(int argc, char *argv[])
         return 1;
     }
     assert(!CfgFile.Value().empty());
+    assert(!TraceOut.Value().empty());
 
     // Read configuration files
     cfg = new Config(CfgFile.Value());
@@ -438,6 +469,7 @@ main(int argc, char *argv[])
     // l1[0]->setNextLevel(l2[0]);
     // l2[0]->setNextLevel(eDRAM[0]);
 
+    trace_out.open(TraceOut.Value().c_str());
 //    mkdir("page_profiling", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 //    mkdir("phase_stats", S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 

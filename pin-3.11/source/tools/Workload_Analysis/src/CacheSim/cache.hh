@@ -95,7 +95,7 @@ class Cache : public MemObject
 
     void reInitialize() override
     {
-        tags.reInitialize();
+//        tags.reInitialize();
 
         accesses = 0;
 

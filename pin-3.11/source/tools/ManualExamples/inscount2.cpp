@@ -20,13 +20,22 @@ using std::endl;
 
 ofstream OutFile;
 
+// static UINT64 count_of_interest = 10000000000;
+
 // The running count of instructions is kept here
 // make it static to help the compiler optimize docount
 static UINT64 icount = 0;
 
 // This function is called before every block
 // Use the fast linkage for calls
-VOID PIN_FAST_ANALYSIS_CALL docount(ADDRINT c) { icount += c; }
+VOID PIN_FAST_ANALYSIS_CALL docount(ADDRINT c) { icount += c;
+						/*
+						if (icount >= 2 * count_of_interest)
+						{
+							std::cout << "Exceeded 20B! \n";
+							std::cout << icount << "\n";
+							exit(0);
+						}*/}
     
 // Pin calls this function every time a new basic block is encountered
 // It inserts a call to docount

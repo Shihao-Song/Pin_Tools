@@ -1,5 +1,5 @@
 CC      := g++
-FLAGS   := -O3 -std=c++17 -w
+FLAGS   := -Og
 
 all: test_app_base test_app_our
 

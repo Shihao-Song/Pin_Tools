@@ -1,3 +1,4 @@
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -7,12 +8,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#include "assembly_instructions/assm.h" // Our PMU class
-
 using std::ofstream;
+ofstream trace_out;
 
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
-    "o", "", "specify output trace file name");
+    "t", "", "specify output trace file name");
 
 static unsigned num_exes_before_mem = 0;
 static void nonMem() // Should disinguish different operations
@@ -24,13 +24,13 @@ static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payloa
 {
     if (num_exes_before_mem != 0)
     {
-        std::cout << num_exes_before_mem << " ";
+        trace_out << num_exes_before_mem << " ";
         num_exes_before_mem = 0;
     }
 
-    if (is_store) { std::cout << "S "; }
-    else { std::cout << "L "; }
-    std::cout << mem_addr << "\n";
+    if (is_store) { trace_out << "S "; }
+    else { trace_out << "L "; }
+    trace_out << mem_addr << "\n";
 }
 
 VOID Image(IMG img, VOID *v)
@@ -102,9 +102,9 @@ main(int argc, char *argv[])
     {
         return 1;
     }
-    // assert(!TraceOut.Value().empty());
+    assert(!TraceOut.Value().empty());
 
-    // trace_out.open(TraceOut.Value().c_str());
+    trace_out.open(TraceOut.Value().c_str());
 
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
     IMG_AddInstrumentFunction(Image, 0);

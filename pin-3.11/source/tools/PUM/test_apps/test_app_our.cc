@@ -24,7 +24,7 @@ int main()
     {
         PMU::ROWAND_256(&(src_1[i]), &(src_2[i]), &(dest[i]));
     }
-
+    
     free(src_1);
     free(src_2);
     free(dest);

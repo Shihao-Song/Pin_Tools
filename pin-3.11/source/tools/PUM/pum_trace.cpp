@@ -1,3 +1,4 @@
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -10,9 +11,14 @@
 #include "assembly_instructions/assm.h" // Our PMU class
 
 using std::ofstream;
+ofstream trace_out;
 
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
-    "o", "", "specify output trace file name");
+    "t", "", "specify output trace file name");
+
+ofstream data_out;
+KNOB<std::string> DataOut(KNOB_MODE_WRITEONCE, "pintool",
+    "d", "", "specify output data file name");
 
 // Extract Processing-using-Memory (PUM) traces
 typedef PMU::UINT8 UINT8;
@@ -30,46 +36,55 @@ static void pumTrace(CONTEXT *ctxt)
 
     if (*opr == UINT8(Operation::AND))
     {
-        std::cout << "ROWAND ";
+        trace_out << "ROWAND ";
     }
     else if (*opr == UINT8(Operation::OR))
     {
-        std::cout << "ROWOR ";
+        trace_out << "ROWOR ";
     }
     else if (*opr == UINT8(Operation::NOT))
     {
-        std::cout << "ROWNOT ";
+        trace_out << "ROWNOT ";
     }
 
     unsigned size = pow(2.0, (double)*len);
 
-    std::cout << (uint64_t)src_1 << " ";
-    std::cout << (uint64_t)src_2 << " ";
-    std::cout << (uint64_t)dest << " ";
-    std::cout << size << "\n";
+    trace_out << (uint64_t)src_1 << " ";
+    trace_out << (uint64_t)src_2 << " ";
+    trace_out << (uint64_t)dest << " ";
+    trace_out << size << "\n";
 
-    /*
+    // Extrace data (for src_1 and src_2)
     UINT8 *src_1_check = (UINT8 *)malloc(size * sizeof(UINT8));
     UINT8 *src_2_check = (UINT8 *)malloc(size * sizeof(UINT8));
 
     PIN_SafeCopy(src_1_check, src_1, size * sizeof(UINT8));
-    PIN_SafeCopy(src_2_check, src_2, size * sizeof(UINT8));
+    if (*opr != UINT8(Operation::NOT))
+    {
+        PIN_SafeCopy(src_2_check, src_2, size * sizeof(UINT8));
+    }
 
+    data_out << (uint64_t)src_1 << " "
+             << size << " ";
     for (unsigned i = 0; i < size; i++)
     {
-        std::cout << int(src_1_check[i]) << " ";
+        data_out << int(src_1_check[i]) << " ";
     }
-    std::cout << "\n";
+    data_out << "\n";
 
-    for (unsigned i = 0; i < size; i++)
+    if (*opr != UINT8(Operation::NOT))
     {
-        std::cout << int(src_2_check[i]) << " ";
+        data_out << (uint64_t)src_2 << " "
+                 << size << " ";
+        for (unsigned i = 0; i < size; i++)
+        {
+            data_out << int(src_2_check[i]) << " ";
+        }
+        data_out << "\n";
     }
-    std::cout << "\n";
-    
+
     free(src_1_check);
     free(src_2_check);
-    */
 }
 
 VOID Image(IMG img, VOID *v)
@@ -114,9 +129,11 @@ main(int argc, char *argv[])
     {
         return 1;
     }
-    // assert(!TraceOut.Value().empty());
+    assert(!TraceOut.Value().empty());
+    assert(!DataOut.Value().empty());
 
-    // trace_out.open(TraceOut.Value().c_str());
+    trace_out.open(TraceOut.Value().c_str());
+    data_out.open(DataOut.Value().c_str());
 
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
     IMG_AddInstrumentFunction(Image, 0);

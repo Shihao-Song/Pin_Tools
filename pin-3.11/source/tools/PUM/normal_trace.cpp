@@ -43,12 +43,12 @@ VOID Image(IMG img, VOID *v)
 
         if (undFuncName.find("regionOfInterest") != std::string::npos)
         {
-            RTN allocRtn = RTN_FindByAddress(IMG_LowAddress(img) + SYM_Value(sym));
+            RTN rtn = RTN_FindByAddress(IMG_LowAddress(img) + SYM_Value(sym));
             
-            if (RTN_Valid(allocRtn))
+            if (RTN_Valid(rtn))
             {
-                RTN_Open(allocRtn);
-                for (INS ins = RTN_InsHead(allocRtn); INS_Valid(ins); ins = INS_Next(ins))
+                RTN_Open(rtn);
+                for (INS ins = RTN_InsHead(rtn); INS_Valid(ins); ins = INS_Next(ins))
                 {
                     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
                     {
@@ -87,7 +87,7 @@ VOID Image(IMG img, VOID *v)
                     }
                 }
             }
-            RTN_Close(allocRtn);
+            RTN_Close(rtn);
         }
     }
 }

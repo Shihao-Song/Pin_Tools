@@ -15,7 +15,7 @@ void regionOfInterest(UINT8* src_1, UINT8* src_2, UINT8* dest, unsigned arr_size
 
 int main()
 {
-    const unsigned ARR_SIZE = 256;
+    const unsigned ARR_SIZE = 1024;
     UINT8* src_1 = (UINT8 *)malloc(ARR_SIZE * sizeof(UINT8));
     UINT8* src_2 = (UINT8 *)malloc(ARR_SIZE * sizeof(UINT8));
     UINT8* dest = (UINT8 *)malloc(ARR_SIZE * sizeof(UINT8));

@@ -19,7 +19,7 @@ int main()
         src_1[i] = d(e);
         src_2[i] = d(e);
     }
-    
+
     for (int i = 0; i < ARR_SIZE; i += 256)
     {
         PMU::ROWAND_256(&(src_1[i]), &(src_2[i]), &(dest[i]));

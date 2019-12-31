@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <iostream>
 
-namespace PMU
+namespace PUM
 {
 typedef uint8_t UINT8;
 

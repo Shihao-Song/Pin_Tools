@@ -21,8 +21,8 @@ KNOB<std::string> DataOut(KNOB_MODE_WRITEONCE, "pintool",
     "d", "", "specify output data file name");
 
 // Extract Processing-using-Memory (PUM) traces
-typedef PMU::UINT8 UINT8;
-typedef PMU::Operation Operation;
+typedef PUM::UINT8 UINT8;
+typedef PUM::Operation Operation;
 
 static void pumTrace(CONTEXT *ctxt)
 {

@@ -3,7 +3,7 @@
 
 #include "../assembly_instructions/assm.h"
 
-typedef PMU::UINT8 UINT8;
+typedef PUM::UINT8 UINT8;
 
 void regionOfInterest(UINT8* src_1, UINT8* src_2, UINT8* dest, unsigned arr_size)
 {

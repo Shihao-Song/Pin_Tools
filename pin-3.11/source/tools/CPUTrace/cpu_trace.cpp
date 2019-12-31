@@ -33,6 +33,65 @@ static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payloa
     trace_out << mem_addr << "\n";
 }
 
+// "Main" function: decode and simulate the instruction
+static void instructionSim(INS ins)
+{
+    if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
+    {
+        for (unsigned int i = 0; i < INS_MemoryOperandCount(ins); i++)
+        {
+            if (INS_MemoryOperandIsRead(ins, i))
+            {
+                INS_InsertPredicatedCall(
+                    ins,
+                    IPOINT_BEFORE,
+                    (AFUNPTR)memTrace,
+                    IARG_ADDRINT, INS_Address(ins),
+                    IARG_BOOL, FALSE,
+                    IARG_MEMORYOP_EA, i,
+                    IARG_UINT32, INS_MemoryOperandSize(ins, i),
+                    IARG_END);
+            }
+
+            if (INS_MemoryOperandIsWritten(ins, i))
+            {
+                INS_InsertPredicatedCall(
+                    ins,
+                    IPOINT_BEFORE,
+                    (AFUNPTR)memTrace,
+                    IARG_ADDRINT, INS_Address(ins),
+                    IARG_BOOL, TRUE,
+                    IARG_MEMORYOP_EA, i,
+                    IARG_UINT32, INS_MemoryOperandSize(ins, i),
+                    IARG_END);
+            }
+        }
+    }
+    else
+    {
+        // Everything else except memory operations.
+        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)nonMem, IARG_END);
+    }
+}
+
+static void traceCallback(TRACE trace, VOID *v)
+{
+    BBL bbl_head = TRACE_BblHead(trace);
+
+    for (BBL bbl = bbl_head; BBL_Valid(bbl); bbl = BBL_Next(bbl))
+    {
+        for(INS ins = BBL_InsHead(bbl); ; ins = INS_Next(ins))
+        {
+            instructionSim(ins);
+            if (ins == BBL_InsTail(bbl))
+            {
+                break;
+            }
+        }
+    }
+}
+
+/*
 VOID Image(IMG img, VOID *v)
 {
     // Walk through the symbols in the symbol table.
@@ -92,6 +151,7 @@ VOID Image(IMG img, VOID *v)
         }
     }
 }
+*/
 
 int
 main(int argc, char *argv[])
@@ -108,7 +168,8 @@ main(int argc, char *argv[])
     trace_out.open(TraceOut.Value().c_str());
 
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.
-    IMG_AddInstrumentFunction(Image, 0);
+    // IMG_AddInstrumentFunction(Image, 0);
+    TRACE_AddInstrumentFunction(traceCallback, 0);
 
     /* Never returns */
     PIN_StartProgram();

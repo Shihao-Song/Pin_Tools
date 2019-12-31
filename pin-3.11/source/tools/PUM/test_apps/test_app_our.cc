@@ -3,7 +3,7 @@
 
 #include "../assembly_instructions/assm.h"
 
-typedef PMU::UINT8 UINT8;
+typedef PUM::UINT8 UINT8;
 
 int main()
 {
@@ -22,7 +22,7 @@ int main()
 
     for (int i = 0; i < ARR_SIZE; i += 256)
     {
-        PMU::ROWAND_256(&(src_1[i]), &(src_2[i]), &(dest[i]));
+        PUM::ROWAND_256(&(src_1[i]), &(src_2[i]), &(dest[i]));
     }
     
     free(src_1);

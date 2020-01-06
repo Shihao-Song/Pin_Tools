@@ -20,7 +20,7 @@ static bool prev_is_write = false;
 static ADDRINT prev_write_addr = 0;
 static UINT32 prev_write_size = 0;
 
-static void getData()
+static void writeData()
 {
     if (prev_is_write)
     {
@@ -45,12 +45,15 @@ static unsigned num_exes_before_mem = 0;
 static void nonMem() // Should disinguish different operations in the future
 {
     if (fast_forwarding) { return; }
+    writeData(); // Finish up prev store insturction
     num_exes_before_mem++;
 }
 
 static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
     if (fast_forwarding) { return; }
+    writeData(); // Finish up prev store insturction
+
     if (num_exes_before_mem != 0)
     {
         trace_out << num_exes_before_mem << " ";
@@ -59,19 +62,6 @@ static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payloa
 
     if (is_store) 
     {
-        /*
-        uint8_t data[payload_size];
-        PIN_SafeCopy(&data, (const uint8_t*)mem_addr, payload_size);
-        trace_out << "S ";
-        trace_out << mem_addr << " ";
-        for (unsigned int i = 0; i < payload_size - 1; i++)
-        {
-            trace_out << int(data[i]) << " ";
-        }
-        trace_out << int(data[payload_size - 1]);
-        trace_out << "\n";
-        */
-
         prev_is_write = true;
         prev_write_addr = mem_addr;
         prev_write_size = payload_size;
@@ -111,8 +101,6 @@ void HandleMagicOp(ADDRINT op)
 // "Main" function: decode and simulate the instruction
 static void instructionSim(INS ins)
 {
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)getData, IARG_END);
-
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
     {
         for (unsigned int i = 0; i < INS_MemoryOperandCount(ins); i++)

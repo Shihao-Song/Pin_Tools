@@ -6,7 +6,7 @@
 
 int main()
 {
-    const unsigned ARR_SIZE = 64;
+    const unsigned ARR_SIZE = 1024 * 1024;
     uint8_t* src_1 = (uint8_t *)malloc(ARR_SIZE * sizeof(uint8_t));
     uint8_t* src_2 = (uint8_t *)malloc(ARR_SIZE * sizeof(uint8_t));
     uint8_t* dest = (uint8_t *)malloc(ARR_SIZE * sizeof(uint8_t));
@@ -26,6 +26,7 @@ int main()
     }
     roi_end();
 
+    /*
     std::cout << "\nSrc (1): \n"; 
     for (int i = 0; i < ARR_SIZE - 1; i++)
     {
@@ -46,6 +47,7 @@ int main()
         std::cout << int(dest[i]) << " ";
     }
     std::cout << int(dest[ARR_SIZE - 1]) << "\n";
+    */
 
     free(src_1);
     free(src_2);

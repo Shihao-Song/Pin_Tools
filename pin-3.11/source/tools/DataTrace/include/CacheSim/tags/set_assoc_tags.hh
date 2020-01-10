@@ -45,14 +45,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
           tag_shift(set_shift + log2(num_sets)),
           sets(num_sets)
     {
-        /*
-        std::cout << "level: " << level << "\n";
-        std::cout << "assoc: " << assoc << "\n";
-        std::cout << "num_sets: " << num_sets << "\n";
-        std::cout << "set_shift: " << set_shift << "\n";
-        std::cout << "set_mask: " << set_mask << "\n";
-        std::cout << "tag_shift: " << tag_shift << "\n\n";
-        */
         for (uint32_t i = 0; i < num_sets; i++)
         {
             sets[i].resize(assoc);
@@ -65,15 +57,13 @@ class SetWayAssocTags : public TagsWithSetWayBlk
     {
         bool hit = false;
         Addr blk_aligned_addr = blkAlign(addr);
-        // std::cout << "Aligned address: " << blk_aligned_addr << "; ";
-        // std::cout << "Set: " << extractSet(blk_aligned_addr) << "; ";
+        
         SetWayBlk *blk = findBlock(blk_aligned_addr);
 
         // If there is hit, upgrade
         if (blk != nullptr)
         {
-            // std::cout << "Hit! \n";
-
+            // std::cout << level_str << " " << blk_aligned_addr << " hit\n";
             hit = true;
             policy.upgrade(blk, cur_clk);
 
@@ -95,7 +85,8 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         victim->insert(extractTag(addr));
         policy.upgrade(victim, cur_clk);
 
-	/*
+        /*
+        std::cout << level_str << "; ";
         std::cout << "Inserted: " << addr << "; ";
         if (wb_required)
         {
@@ -109,16 +100,133 @@ class SetWayAssocTags : public TagsWithSetWayBlk
 
         return std::make_pair(wb_required, victim_addr);
     }
-
-    void reInitialize() override
+   
+    void inval(uint64_t _addr) override
     {
-        for (unsigned i = 0; i < num_blocks; i++)
+        Addr blk_aligned_addr = blkAlign(_addr);
+        SetWayBlk *blk = findBlock(blk_aligned_addr);
+        if (blk != nullptr)
         {
-            blks[i].invalidate();
-            blks[i].clearDirty();
-            blks[i].when_touched = 0;
+            invalidate(blk);
+            blk->ori_data.clear();
+            blk->new_data.clear();
+            assert(blk->ori_data.size() == 0);
+            assert(blk->new_data.size() == 0);
         }
-        tagsInit();
+    }
+    
+    void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
+    {
+        unsigned block_offset = _addr & block_mask;
+	
+        Addr blk_aligned_addr = blkAlign(_addr);
+        SetWayBlk *blk = findBlock(blk_aligned_addr);
+        // assert(blk != nullptr);
+        if (blk == nullptr) { std::cerr << blk_aligned_addr << "\n"; exit(0); }
+
+        assert(blk->ori_data.size() != 0);
+        assert(blk->new_data.size() != 0);
+
+        for (unsigned int i = 0; i < size; i++)
+        {
+            blk->new_data[block_offset + i] = data[i];
+        }
+
+        /*	
+        std::cout << "New data for " << _addr <<  ", offset " << block_offset << ", size " << size << "\n";
+        for (unsigned int i = 0; i < block_size - 1; i++)
+        {
+            std::cout << int(blk->new_data[i]) << " ";
+        }
+        std::cout << int(blk->new_data[block_size - 1]) << "\n";
+        */
+    }
+
+    void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
+    {
+        Addr blk_aligned_addr = blkAlign(_addr);
+        SetWayBlk *blk = findBlock(blk_aligned_addr);
+        assert(blk != nullptr);
+
+        assert(blk->ori_data.size() == 0);
+        assert(blk->new_data.size() == 0);
+
+        blk->ori_data.resize(size);
+        blk->new_data.resize(size);
+        for (unsigned int i = 0; i < size; i++)
+        {
+            blk->ori_data[i] = data[i];
+            blk->new_data[i] = data[i];
+        }
+
+	/*
+        std::cout << level_str << " data for " << blk_aligned_addr << "\n";
+        std::cout << "Old data: \n";
+        for (unsigned int i = 0; i < size - 1; i++)
+        {
+            std::cout << int(blk->ori_data[i]) << " ";
+        }
+        std::cout << int(blk->ori_data[size - 1]) << "\n";
+	
+        std::cout << "New data: \n";
+        for (unsigned int i = 0; i < size - 1; i++)
+        {
+            std::cout << int(blk->new_data[i]) << " ";
+        }
+        std::cout << int(blk->new_data[size - 1]) << "\n";
+        */
+    }
+   
+    void getBlock(uint64_t _addr,
+                  std::vector<uint8_t> &ori_data,
+                  std::vector<uint8_t> &new_data) override
+    {
+        SetWayBlk *blk = findBlock(_addr);
+        assert(blk != nullptr);
+
+        assert(blk->ori_data.size() != 0);
+        assert(blk->new_data.size() != 0);
+        assert(blk->ori_data.size() == blk->new_data.size());
+
+        ori_data.resize(blk->ori_data.size());
+        new_data.resize(blk->new_data.size());
+
+        for (unsigned int i = 0; i < blk->ori_data.size(); i++)
+        {
+            ori_data[i] = blk->ori_data[i];
+            new_data[i] = blk->new_data[i];
+        }
+    }
+
+    void setBlock(uint64_t _addr,
+                  std::vector<uint8_t> &ori_data,
+                  std::vector<uint8_t> &new_data) override
+    {
+        SetWayBlk *blk = findBlock(_addr);
+        assert(blk != nullptr);
+
+        assert(blk->ori_data.size() == 0);
+        assert(blk->new_data.size() == 0);
+
+        blk->ori_data.resize(ori_data.size());
+        blk->new_data.resize(new_data.size());
+
+        for (unsigned int i = 0; i < ori_data.size(); i++)
+        {
+            blk->ori_data[i] = ori_data[i];
+            blk->new_data[i] = new_data[i];
+        }
+    }
+
+    void clearData(uint64_t _addr) override
+    {
+        SetWayBlk *blk = findBlock(_addr);
+        assert(blk != nullptr);
+
+        blk->ori_data.clear();
+        blk->new_data.clear();
+        assert(blk->ori_data.size() == 0);
+        assert(blk->new_data.size() == 0);
     }
 
     void printTagInfo() override
@@ -186,13 +294,12 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         SetWayBlk *victim = ret.second;
         assert(victim != nullptr);
 
-        Addr victim_addr = MaxAddr;
-
+        // Addr victim_addr = MaxAddr;
         if (wb_required)
         {
             assert(victim->isDirty());
-            victim_addr = regenerateAddr(victim);
         }
+        Addr victim_addr = regenerateAddr(victim);
 
         if (victim->isValid())
         {

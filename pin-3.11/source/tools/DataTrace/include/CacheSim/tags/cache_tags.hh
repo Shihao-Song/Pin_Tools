@@ -23,13 +23,9 @@ class Tags
           num_blocks(size / block_size),
           blks(num_blocks)
     {
-        /*
-        std::cout << "block_size: " << block_size << "\n";
-        std::cout << "block_mask: " << block_mask << "\n";
-        std::cout << "size: " << size << "\n";
-        std::cout << "num_blocks: " << num_blocks << "\n";
-        */
     }
+
+    std::string level_str;
 
   protected:
     const unsigned block_size; // cache-line (block) size in bytes
@@ -48,7 +44,23 @@ class Tags
     // return val: <write-back required?, write-back address>
     virtual std::pair<bool, Addr> insertBlock(Addr addr, bool modify, Tick cur_clk = 0) = 0;
 
-    virtual void reInitialize() {}
+    virtual void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size)
+    {}
+
+    virtual void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size)
+    {}
+
+    virtual void getBlock(uint64_t _addr,
+                          std::vector<uint8_t> &ori_data,
+                          std::vector<uint8_t> &new_data) {}
+
+    virtual void setBlock(uint64_t _addr,
+                          std::vector<uint8_t> &ori_data,
+                          std::vector<uint8_t> &new_data) {}
+
+    virtual void clearData(uint64_t _addr) {}
+
+    virtual void inval(uint64_t _addr) {}
 
     virtual void printTagInfo() {}
     

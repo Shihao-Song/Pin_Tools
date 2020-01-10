@@ -26,13 +26,13 @@ static inline void magic_op(uint64_t op) {
 #endif
 
 static inline void roi_begin() {
-    printf("[" HOOKS_STR "] ROI begin\n");
+    // printf("[" HOOKS_STR "] ROI begin\n");
     magic_op(ROI_BEGIN);
 }
 
 static inline void roi_end() {
     magic_op(ROI_END);
-    printf("[" HOOKS_STR  "] ROI end\n");
+    // printf("[" HOOKS_STR  "] ROI end\n");
 }
 
 #endif

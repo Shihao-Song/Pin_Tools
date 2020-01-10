@@ -29,25 +29,14 @@ class Cache : public MemObject
         tags(int(lev), cfg),
         level(lev),
         level_name(toString())
-    {}
+    {
+        tags.level_str = level_name;
+    }
 
-    void send(Request &req) override
+    bool send(Request &req) override
     {
         accesses++;
-
-        /*
-        std::cout << level_name << "; ";
-        std::cout << "Address: " << req.addr << "; ";
-        if (req.req_type == Request::Request_Type::READ)
-        {
-            std::cout << "R; ";
-        }
-        else
-        {
-            std::cout << "W; ";
-        }
-        */
-
+        
         auto access_info = tags.accessBlock(req.addr,
                                             req.req_type != Request::Request_Type::READ ?
                                             true : false,
@@ -55,10 +44,10 @@ class Cache : public MemObject
 
         bool hit = access_info.first;
         Addr aligned_addr = access_info.second;
-
-        // If cache hit, simply return;
-        if (hit) { ++num_hits; return;}
+        
+        if (hit) { ++num_hits; return true; }
         // For any read/write miss, the cache needs to load the block from lower level.
+        bool next_level_hit = false;
         if (req.req_type != Request::Request_Type::WRITE_BACK)
         {
             ++num_misses;
@@ -72,8 +61,10 @@ class Cache : public MemObject
                 req.addr = aligned_addr; // Address of the missed block.
                 req.req_type = Request::Request_Type::READ; // Loading (Always)
 
-                next_level->send(req);
+                next_level_hit = next_level->send(req);
+
             }
+	    // TODO, extract traces from LLC
         }
 
         // Insert the missed block
@@ -82,7 +73,7 @@ class Cache : public MemObject
                                             true : false,
                                             accesses);
         bool wb_required = insert_info.first;
-        Addr wb_addr = insert_info.second;
+        Addr victim_addr = insert_info.second;
         
         // Send a write-back request to next level if there is an eviction.
         if (wb_required)
@@ -93,26 +84,72 @@ class Cache : public MemObject
             {
                 Request req;
 
-                req.addr = wb_addr; // Address of the evicted block.
+                req.addr = victim_addr; // Address of the evicted block.
                 req.req_type = Request::Request_Type::WRITE_BACK;
 
-                next_level->send(req);
+                next_level->send(req); // send to lower levels
             }
-	}
+
+            // TODO-1, extract traces from LLC
+        }
+        // Invalidate upper levels (inclusive)
+        if (prev_level != nullptr) { prev_level->inval(victim_addr); }
+        tags.clearData(aligned_addr); // Clear all the old data
+
+        // Load new data from lower level if there is a hit there.
+        if (next_level_hit)
+        {
+            std::vector<uint8_t> ori_data;
+            std::vector<uint8_t> new_data;
+
+            next_level->getBlock(aligned_addr, ori_data, new_data);
+
+            assert(ori_data.size() > 0);
+            assert(new_data.size() > 0);
+
+            setBlock(aligned_addr, ori_data, new_data);
+        }
+
+	return next_level_hit;
     }
 
-    void reInitialize() override
+    void inval(uint64_t _addr) override
     {
-//        tags.reInitialize();
+        // Invalidate the block address
+        tags.inval(_addr);
 
-        accesses = 0;
+        if (prev_level != nullptr)
+        {
+            prev_level->inval(_addr);
+        }
+    }
 
-        num_hits = 0;
-        num_misses = 0;
-        num_loads = 0;
-        num_evicts = 0;
+    void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
+    {
+        tags.loadBlock(_addr, data, size);
 
-        if (next_level != nullptr) { next_level->reInitialize(); }
+        if (next_level != nullptr) { next_level->loadBlock(_addr, data, size); }
+    }
+
+    void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
+    {
+        tags.modifyBlock(_addr, data, size);
+
+        if (next_level != nullptr) { next_level->modifyBlock(_addr, data, size); }
+    }
+
+    void getBlock(uint64_t _addr,
+                  std::vector<uint8_t> &ori_data,
+                  std::vector<uint8_t> &new_data) override
+    {
+        tags.getBlock(_addr, ori_data, new_data);
+    }
+
+    void setBlock(uint64_t _addr,
+                  std::vector<uint8_t> &ori_data,
+                  std::vector<uint8_t> &new_data) override
+    {
+        tags.setBlock(_addr, ori_data, new_data);
     }
 
     void registerStats(Stats &stats) override

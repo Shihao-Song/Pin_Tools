@@ -29,13 +29,16 @@ typedef System::MMU MMU;
 MMU *mmu;
 
 // Define cache here
+static unsigned BLOCK_SIZE;
 #include "include/CacheSim/cache.hh"
 typedef CacheSimulator::SetWayAssocCache Cache;
 std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 
 // Trace how many instructions executed.
-static UINT64 insn_count = 0; // Track how many instructions we have already instrumented.
-static void increCount() { if (fast_forwarding) { return; } ++insn_count; }
+static const uint64_t SKIP = 1000000000;
+static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
+static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwarding = false; } 
+                                         if (insn_count == SKIP + 100000000) {exit(0);} }
 
 // We rely on the followings to capture the data to program.
 static bool prev_is_write = false;
@@ -46,29 +49,29 @@ static void writeData()
 {
     if (prev_is_write)
     {
-        uint8_t data[prev_write_size];
-        PIN_SafeCopy(&data, (const uint8_t*)prev_write_addr, prev_write_size);
-	
-	trace_out << "S ";
-        trace_out << prev_write_addr << " " << prev_write_size << " ";
+        uint8_t new_data[prev_write_size];
+        PIN_SafeCopy(&new_data, (const uint8_t*)prev_write_addr, prev_write_size);
 
-        for (unsigned int i = 0; i < prev_write_size - 1; i++)
+        Request req;
+        req.req_type = Request::Request_Type::WRITE;
+        req.addr = (uint64_t)prev_write_addr;
+
+        for (unsigned i = 0; i < 1; i++)
         {
-            trace_out << int(data[i]) << " ";
+            req.core_id = i;
+            mmu->va2pa(req);
+        
+            L1s[i]->modifyBlock(req.addr, new_data, prev_write_size);
         }
-        trace_out << int(data[prev_write_size - 1]);
-        trace_out << "\n";
 
         prev_is_write = false;
     }
 }
 
-static unsigned num_exes_before_mem = 0;
 static void nonMem() // Should disinguish different operations in the future
 {
     if (fast_forwarding) { return; }
     writeData(); // Finish up prev store insturction
-    num_exes_before_mem++;
 }
 
 // TODO, simulate store and load.
@@ -83,64 +86,33 @@ static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payloa
     if (is_store)
     {
         req.req_type = Request::Request_Type::WRITE;
-    }
-    else
-    {
-        req.req_type = Request::Request_Type::READ;
-    }
-    req.addr = mem_addr;
 
-    for (unsigned i = 0; i < 1; i++)
-    {
-        req.core_id = i;
-        mmu->va2pa(req);
-
-        L1s[i]->send(req);
-    }
-
-    /*
-    if (num_exes_before_mem != 0)
-    {
-        trace_out << num_exes_before_mem << " ";
-        num_exes_before_mem = 0;
-    }
-
-    if (is_store) 
-    {
         prev_is_write = true;
         prev_write_addr = mem_addr;
         prev_write_size = payload_size;
     }
     else
     {
-        uint8_t data[payload_size];
-        PIN_SafeCopy(&data, (const uint8_t*)mem_addr, payload_size);
-        trace_out << "L ";
-        trace_out << mem_addr << " " << payload_size << " ";
-        for (unsigned int i = 0; i < payload_size - 1; i++)
-        {
-            trace_out << int(data[i]) << " ";
-        }
-        trace_out << int(data[payload_size - 1]);
-        trace_out << "\n";
+        req.req_type = Request::Request_Type::READ;
     }
-    */
-}
+    req.addr = (uint64_t)mem_addr;
 
-#define ROI_BEGIN    (1025)
-#define ROI_END      (1026)
-void HandleMagicOp(ADDRINT op)
-{
-    switch (op)
+    for (unsigned i = 0; i < 1; i++)
     {
-        case ROI_BEGIN:
-            fast_forwarding = false;
-            // std::cout << "Captured roi_begin() \n";
-            return;
-        case ROI_END:
-            fast_forwarding = true;
-            // std::cout << "Captured roi_end() \n";
-            return;
+        req.core_id = i;
+        mmu->va2pa(req);
+
+        bool hit = L1s[i]->send(req);
+        if (!hit)
+        {
+            uint8_t data[BLOCK_SIZE];
+
+            ADDRINT aligned_addr = mem_addr & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
+            PIN_SafeCopy(&data, (const uint8_t*)aligned_addr, BLOCK_SIZE);
+            L1s[i]->loadBlock(req.addr, data, BLOCK_SIZE); // Load the entire block.
+
+            // if (!is_store) { std::cout << "\n"; }
+        }
     }
 }
 
@@ -180,17 +152,6 @@ static void instructionSim(INS ins)
                     IARG_END);
             }
         }
-    }
-    else if (INS_IsXchg(ins) && 
-             INS_OperandReg(ins, 0) == REG_RCX && 
-             INS_OperandReg(ins, 1) == REG_RCX)
-    {
-        INS_InsertCall(
-            ins,
-            IPOINT_BEFORE, 
-            (AFUNPTR) HandleMagicOp,
-            IARG_REG_VALUE, REG_ECX,
-            IARG_END);
     }
     else
     {
@@ -234,7 +195,8 @@ main(int argc, char *argv[])
     // Parse configuration file
     cfg = new Config(CfgFile.Value());
     NUM_CORES = cfg->num_cores;
-
+    BLOCK_SIZE = cfg->block_size;
+    
     // Create MMU
     mmu = new MMU(NUM_CORES);
 
@@ -282,10 +244,10 @@ main(int argc, char *argv[])
 
     // Power-9 setup
     assert(L2s.size() == 1);
-    for (unsigned i = 0; i < NUM_CORES; i++)
+    for (unsigned i = 0; i < 1; i++)
     {
         L1s[i]->setNextLevel(L2s[0]);
-        L2s[0]->setPrevLevel(L1s[i]);
+        L2s[0]->setPrevLevel(L1s[i]); // Should be a vector
     }
 
     // RTN_AddInstrumentFunction(routineCallback, 0);

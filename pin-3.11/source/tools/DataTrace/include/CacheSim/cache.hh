@@ -44,8 +44,17 @@ class Cache : public MemObject
 
         bool hit = access_info.first;
         Addr aligned_addr = access_info.second;
-        
-        if (hit) { ++num_hits; return true; }
+
+        if (hit)
+        {
+            // I don't consider write-back hit as normal cache hits.
+            if (req.req_type != Request::Request_Type::WRITE_BACK)
+            {
+                ++num_hits;
+            }
+            return true;
+        }
+
         // For any read/write miss, the cache needs to load the block from lower level.
         bool next_level_hit = false;
         if (req.req_type != Request::Request_Type::WRITE_BACK)
@@ -64,7 +73,11 @@ class Cache : public MemObject
                 next_level_hit = next_level->send(req);
 
             }
-	    // TODO, extract traces from LLC
+            else
+            {
+                // Output off-chip read traffic
+                *trace_out << aligned_addr << " R\n";
+            }
         }
 
         // Insert the missed block
@@ -89,8 +102,37 @@ class Cache : public MemObject
 
                 next_level->send(req); // send to lower levels
             }
+            else
+            {
+                // Output off-chip write traffic
+                std::vector<uint8_t> ori_data;
+                std::vector<uint8_t> new_data;
 
-            // TODO-1, extract traces from LLC
+                getBlock(aligned_addr, ori_data, new_data);
+
+                assert(ori_data.size() > 0);
+                assert(new_data.size() > 0);
+
+		*trace_out << victim_addr << " W " << new_data.size() << " ";
+                /*
+                int num_diff = 0;
+                for (unsigned int i = 0; i < new_data.size(); i++)
+                {
+                    if (ori_data[i] != new_data[i]) { num_diff++; }
+                }
+                *trace_out << num_diff << "\n";
+                */
+                for (unsigned int i = 0; i < ori_data.size(); i++)
+                {
+                    *trace_out << int(ori_data[i]) << " ";
+                }
+                
+                for (unsigned int i = 0; i < new_data.size() - 1; i++)
+                {
+                    *trace_out << int(new_data[i]) << " ";
+                }
+                *trace_out << int(new_data[new_data.size() - 1]) << "\n";
+            }
         }
         // Invalidate upper levels (inclusive)
         for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }

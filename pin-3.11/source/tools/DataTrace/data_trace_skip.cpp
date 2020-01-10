@@ -265,6 +265,7 @@ main(int argc, char *argv[])
 
     L2s[0]->setNextLevel(L3s[0]);
     L3s[0]->setPrevLevel(L2s[0]);
+    L3s[0]->traceOutput(&trace_out);
 
     // RTN_AddInstrumentFunction(routineCallback, 0);
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.

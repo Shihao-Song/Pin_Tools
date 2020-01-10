@@ -102,8 +102,8 @@ class SetWayAssocTags : public TagsWithSetWayBlk
    
     void inval(uint64_t _addr) override
     {
-        Addr blk_aligned_addr = blkAlign(_addr);
-        SetWayBlk *blk = findBlock(blk_aligned_addr);
+        // assert(_addr == blkAlign(_addr));
+        SetWayBlk *blk = findBlock(_addr);
         if (blk != nullptr)
         {
             invalidate(blk);

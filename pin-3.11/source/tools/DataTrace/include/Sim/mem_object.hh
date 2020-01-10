@@ -6,6 +6,8 @@
 #include "request.hh"
 #include "stats.hh"
 
+using std::ofstream;
+
 class MemObject
 {
   public:
@@ -38,6 +40,8 @@ class MemObject
         id = _id;
     }
 
+    virtual void traceOutput(ofstream *_out) { trace_out = _out; }
+
     virtual void registerStats(Stats &stats) {}
 
     virtual void reInitialize() {}
@@ -47,6 +51,8 @@ class MemObject
     MemObject *next_level = nullptr;
 
     int id = -1;
+
+    ofstream *trace_out;    
 };
 
 #endif

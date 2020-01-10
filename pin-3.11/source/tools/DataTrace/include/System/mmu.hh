@@ -85,6 +85,71 @@ class MMU
         req.addr = pa;
     }
 };
+
+#include <algorithm>
+class SingleNode : public MMU
+{
+  protected:
+    // All the touched pages for each core.
+    std::vector<std::unordered_map<Addr,Addr>> pages_by_cores;
+
+    // A pool of free physical pages
+    std::vector<Addr> free_frame_pool;
+
+    // A pool of used physical pages.
+    std::unordered_map<Addr,bool> used_frame_pool;
+
+    // TODO, hard-coded so far.
+    const unsigned memory_size_gb = 128;
+  public:
+    SingleNode(int num_of_cores)
+        : MMU(num_of_cores)
+    {
+        pages_by_cores.resize(num_of_cores);
+
+        for (unsigned int i = 0; i < memory_size_gb * 1024 * 1024 / 4; i++)
+        {
+            // All available pages
+            free_frame_pool.push_back(i);
+        }
+        std::random_shuffle(free_frame_pool.begin(), free_frame_pool.end());
+    }
+
+    void va2pa(Request &req) override
+    {
+        int core_id = req.core_id;
+
+        Addr va = req.addr;
+        Addr virtual_page_id = va >> Mapper::va_page_shift;
+
+        auto &pages = pages_by_cores[core_id];
+        
+        auto p_iter = pages.find(virtual_page_id);
+        if (p_iter != pages.end())
+        {
+            Addr page_id = p_iter->second;
+            req.addr = (page_id << Mapper::va_page_shift) |
+                       (va & Mapper::va_page_mask);
+        }
+        else
+        {
+            auto &free_frames = free_frame_pool;
+
+            auto &used_frames = used_frame_pool;
+
+            // Choose a free frame
+            Addr free_frame = *(free_frames.begin());
+
+            free_frames.erase(free_frames.begin());
+            used_frames.insert({free_frame, true});
+
+            req.addr = (free_frame << Mapper::va_page_shift) |
+                       (va & Mapper::va_page_mask);
+            // Insert the page
+            pages.insert({virtual_page_id, free_frame});
+        }
+    }
+};
 }
 
 #endif

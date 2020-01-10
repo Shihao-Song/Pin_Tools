@@ -20,6 +20,14 @@ class Stats
         printables.push_back(printable + "\n");
     }
 
+    void printf()
+    {
+        for (auto entry : printables)
+        {
+            std::cout << entry;
+        }
+    }
+
     void outputStats(std::string output)
     {
         ofstream out;

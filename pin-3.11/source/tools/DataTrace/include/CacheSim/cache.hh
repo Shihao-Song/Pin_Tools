@@ -35,7 +35,7 @@ class Cache : public MemObject
 
     bool send(Request &req) override
     {
-        accesses++;
+        accesses++; // Emulate a timer for LRU.
         
         auto access_info = tags.accessBlock(req.addr,
                                             req.req_type != Request::Request_Type::READ ?
@@ -93,7 +93,7 @@ class Cache : public MemObject
             // TODO-1, extract traces from LLC
         }
         // Invalidate upper levels (inclusive)
-        if (prev_level != nullptr) { prev_level->inval(victim_addr); }
+        for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
         tags.clearData(aligned_addr); // Clear all the old data
 
         // Load new data from lower level if there is a hit there.
@@ -117,11 +117,7 @@ class Cache : public MemObject
     {
         // Invalidate the block address
         tags.inval(_addr);
-
-        if (prev_level != nullptr)
-        {
-            prev_level->inval(_addr);
-        }
+        for (auto &prev_level : prev_levels) { prev_level->inval(_addr); }
     }
 
     void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size) override

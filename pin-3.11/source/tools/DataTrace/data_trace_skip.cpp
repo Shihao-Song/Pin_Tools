@@ -25,7 +25,7 @@ Config *cfg;
 // Define MMU
 #include "include/System/mmu.hh"
 static unsigned int NUM_CORES;
-typedef System::MMU MMU;
+typedef System::SingleNode MMU;
 MMU *mmu;
 
 // Define cache here
@@ -38,7 +38,20 @@ std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 static const uint64_t SKIP = 1000000000;
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwarding = false; } 
-                                         if (insn_count == SKIP + 100000000) {exit(0);} }
+                                         if (insn_count == SKIP + 100000000)
+                                         {
+                                             Stats stat;
+                                             stat.registerStats("Number of instructions: "
+                                                                + to_string(insn_count));
+
+                                             for (auto cache : L1s) { cache->registerStats(stat); }
+                                             for (auto cache : L2s) { cache->registerStats(stat); }
+                                             for (auto cache : L3s) { cache->registerStats(stat); }
+                                             //for (auto cache : eDRAMs) { cache->registerStats(stat); }
+
+                                             stat.printf();
+					     exit(0);
+                                         }}
 
 // We rely on the followings to capture the data to program.
 static bool prev_is_write = false;
@@ -56,7 +69,7 @@ static void writeData()
         req.req_type = Request::Request_Type::WRITE;
         req.addr = (uint64_t)prev_write_addr;
 
-        for (unsigned i = 0; i < 1; i++)
+        for (unsigned i = 0; i < NUM_CORES; i++)
         {
             req.core_id = i;
             mmu->va2pa(req);
@@ -97,7 +110,7 @@ static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payloa
     }
     req.addr = (uint64_t)mem_addr;
 
-    for (unsigned i = 0; i < 1; i++)
+    for (unsigned i = 0; i < NUM_CORES; i++)
     {
         req.core_id = i;
         mmu->va2pa(req);
@@ -244,11 +257,14 @@ main(int argc, char *argv[])
 
     // Power-9 setup
     assert(L2s.size() == 1);
-    for (unsigned i = 0; i < 1; i++)
+    for (unsigned i = 0; i < NUM_CORES; i++)
     {
         L1s[i]->setNextLevel(L2s[0]);
         L2s[0]->setPrevLevel(L1s[i]); // Should be a vector
     }
+
+    L2s[0]->setNextLevel(L3s[0]);
+    L3s[0]->setPrevLevel(L2s[0]);
 
     // RTN_AddInstrumentFunction(routineCallback, 0);
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.

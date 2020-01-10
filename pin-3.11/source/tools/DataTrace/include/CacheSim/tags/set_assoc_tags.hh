@@ -63,7 +63,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         // If there is hit, upgrade
         if (blk != nullptr)
         {
-            // std::cout << level_str << " " << blk_aligned_addr << " hit\n";
             hit = true;
             policy.upgrade(blk, cur_clk);
 

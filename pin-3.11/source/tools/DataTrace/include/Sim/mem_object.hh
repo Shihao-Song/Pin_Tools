@@ -15,7 +15,7 @@ class MemObject
 
     virtual bool send(Request &req) = 0;
 
-    virtual void setPrevLevel(MemObject *_prev_level) { prev_level = _prev_level; } 
+    virtual void setPrevLevel(MemObject *_prev_level) { prev_levels.push_back(_prev_level); } 
 
     virtual void setNextLevel(MemObject *_next_level) { next_level = _next_level; }
 
@@ -43,7 +43,7 @@ class MemObject
     virtual void reInitialize() {}
 
   protected:
-    MemObject *prev_level = nullptr;
+    std::vector<MemObject*> prev_levels;
     MemObject *next_level = nullptr;
 
     int id = -1;

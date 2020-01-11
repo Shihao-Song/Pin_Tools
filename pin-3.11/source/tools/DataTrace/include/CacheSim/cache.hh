@@ -135,7 +135,10 @@ class Cache : public MemObject
             }
         }
         // Invalidate upper levels (inclusive)
-        for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
+        if (victim_addr != MaxAddr)
+        {
+            for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
+        }
         tags.clearData(aligned_addr); // Clear all the old data
 
         // Load new data from lower level if there is a hit there.
@@ -215,6 +218,8 @@ class Cache : public MemObject
     }
 
   protected:
+    const Addr MaxAddr = (Addr) - 1;
+
     Tick accesses = 0; // We are using this for LRU policy.
 
     uint64_t num_loads = 0;

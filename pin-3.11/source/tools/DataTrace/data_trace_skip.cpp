@@ -35,10 +35,10 @@ typedef CacheSimulator::SetWayAssocCache Cache;
 std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 
 // Trace how many instructions executed.
-static const uint64_t SKIP = 1000000000;
+static const uint64_t SKIP = 10000000000;
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwarding = false; } 
-                                         if (insn_count == SKIP + 100000000)
+                                         if (insn_count == SKIP + 250000000)
                                          {
                                              Stats stat;
                                              stat.registerStats("Number of instructions: "
@@ -88,7 +88,7 @@ static void nonMem() // Should disinguish different operations in the future
 }
 
 // TODO, simulate store and load.
-static void memTrace(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
+static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
     if (fast_forwarding) { return; }
     writeData(); // Finish up prev store insturction
@@ -144,7 +144,7 @@ static void instructionSim(INS ins)
                 INS_InsertPredicatedCall(
                     ins,
                     IPOINT_BEFORE,
-                    (AFUNPTR)memTrace,
+                    (AFUNPTR)simMemOpr,
                     IARG_ADDRINT, INS_Address(ins),
                     IARG_BOOL, FALSE,
                     IARG_MEMORYOP_EA, i,
@@ -157,7 +157,7 @@ static void instructionSim(INS ins)
                 INS_InsertPredicatedCall(
                     ins,
                     IPOINT_BEFORE,
-                    (AFUNPTR)memTrace,
+                    (AFUNPTR)simMemOpr,
                     IARG_ADDRINT, INS_Address(ins),
                     IARG_BOOL, TRUE,
                     IARG_MEMORYOP_EA, i,

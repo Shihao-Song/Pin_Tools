@@ -293,16 +293,17 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         SetWayBlk *victim = ret.second;
         assert(victim != nullptr);
 
-        // Addr victim_addr = MaxAddr;
+        Addr victim_addr = MaxAddr;
         if (wb_required)
         {
             assert(victim->isDirty());
         }
-        Addr victim_addr = regenerateAddr(victim);
 
         if (victim->isValid())
         {
             invalidate(victim);
+            victim_addr = regenerateAddr(victim); // This address needs to be invalidated for 
+                                                  // upper levels.
         }
 
         return victimRet{wb_required, victim_addr, victim};

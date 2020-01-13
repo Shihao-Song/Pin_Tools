@@ -2,16 +2,12 @@
 #define __MMU_HH__
 
 #include <algorithm>
-#include <fstream>
-#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "random.hh"
 #include "../Sim/request.hh"
-
-using std::ofstream;
 
 namespace System
 {
@@ -86,7 +82,6 @@ class MMU
     }
 };
 
-#include <algorithm>
 class SingleNode : public MMU
 {
   protected:

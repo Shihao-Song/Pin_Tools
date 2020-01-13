@@ -84,19 +84,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         victim->insert(extractTag(addr));
         policy.upgrade(victim, cur_clk);
 
-        /*
-        std::cout << level_str << "; ";
-        std::cout << "Inserted: " << addr << "; ";
-        if (wb_required)
-        {
-            std::cout << "Evicted: " << victim_addr << "\n";
-        }
-        else
-        {
-            std::cout << "\n";
-        }
-        */
-
         return std::make_pair(wb_required, victim_addr);
     }
    
@@ -120,8 +107,7 @@ class SetWayAssocTags : public TagsWithSetWayBlk
 	
         Addr blk_aligned_addr = blkAlign(_addr);
         SetWayBlk *blk = findBlock(blk_aligned_addr);
-        // assert(blk != nullptr);
-        if (blk == nullptr) { std::cerr << blk_aligned_addr << "\n"; exit(0); }
+        assert(blk != nullptr);
 
         assert(blk->ori_data.size() != 0);
         assert(blk->new_data.size() != 0);
@@ -130,15 +116,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
         {
             blk->new_data[block_offset + i] = data[i];
         }
-
-        /*	
-        std::cout << "New data for " << _addr <<  ", offset " << block_offset << ", size " << size << "\n";
-        for (unsigned int i = 0; i < block_size - 1; i++)
-        {
-            std::cout << int(blk->new_data[i]) << " ";
-        }
-        std::cout << int(blk->new_data[block_size - 1]) << "\n";
-        */
     }
 
     void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
@@ -157,23 +134,6 @@ class SetWayAssocTags : public TagsWithSetWayBlk
             blk->ori_data[i] = data[i];
             blk->new_data[i] = data[i];
         }
-
-	/*
-        std::cout << level_str << " data for " << blk_aligned_addr << "\n";
-        std::cout << "Old data: \n";
-        for (unsigned int i = 0; i < size - 1; i++)
-        {
-            std::cout << int(blk->ori_data[i]) << " ";
-        }
-        std::cout << int(blk->ori_data[size - 1]) << "\n";
-	
-        std::cout << "New data: \n";
-        for (unsigned int i = 0; i < size - 1; i++)
-        {
-            std::cout << int(blk->new_data[i]) << " ";
-        }
-        std::cout << int(blk->new_data[size - 1]) << "\n";
-        */
     }
    
     void getBlock(uint64_t _addr,

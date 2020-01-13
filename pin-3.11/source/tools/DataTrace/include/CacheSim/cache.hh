@@ -114,14 +114,7 @@ class Cache : public MemObject
                 assert(new_data.size() > 0);
 
 		*trace_out << victim_addr << " W " << new_data.size() << " ";
-                /*
-                int num_diff = 0;
-                for (unsigned int i = 0; i < new_data.size(); i++)
-                {
-                    if (ori_data[i] != new_data[i]) { num_diff++; }
-                }
-                *trace_out << num_diff << "\n";
-                */
+
                 for (unsigned int i = 0; i < ori_data.size(); i++)
                 {
                     *trace_out << int(ori_data[i]) << " ";
@@ -153,6 +146,22 @@ class Cache : public MemObject
             assert(new_data.size() > 0);
 
             setBlock(aligned_addr, ori_data, new_data);
+
+            /*
+            std::vector<uint8_t> check_ori;
+            std::vector<uint8_t> check_new;
+            getBlock(aligned_addr, check_ori, check_new);
+            bool passed = true;
+            for (unsigned int i = 0; i < ori_data.size(); i++)
+            {
+                if (ori_data[i] != check_ori[i] || new_data[i] != check_new[i])
+                {
+                    passed = false;
+                }
+            }
+            assert(passed);
+            exit(0);
+            */
         }
 
 	return next_level_hit;

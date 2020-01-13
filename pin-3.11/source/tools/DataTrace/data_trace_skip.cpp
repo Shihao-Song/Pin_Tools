@@ -14,7 +14,7 @@ ofstream trace_out;
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
     "o", "", "specify output trace file name");
 
-static bool fast_forwarding = true; // Fast-forwarding mode?
+static bool fast_forwarding = false; // Fast-forwarding mode?
 
 // Define config here
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
@@ -37,9 +37,10 @@ std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 // Trace how many instructions executed.
 static const uint64_t SKIP = 10000000000;
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
-static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwarding = false; } 
+static void increCount() { ++insn_count; /*if (insn_count == SKIP) { fast_forwarding = false; } 
                                          if (insn_count == SKIP + 250000000)
                                          {
+                                             std::cout << "Done\n";
                                              Stats stat;
                                              stat.registerStats("Number of instructions: "
                                                                 + to_string(insn_count));
@@ -51,77 +52,39 @@ static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwardi
 
                                              stat.printf();
 					     exit(0);
-                                         }}
+                                         }*/}
 
 // We rely on the followings to capture the data to program.
 static bool prev_is_write = false;
-static ADDRINT prev_write_addr = 0;
-static UINT32 prev_write_size = 0;
+static std::vector<ADDRINT> prev_write_addrs;
+static std::vector<UINT32> prev_write_sizes;
 // TODO, copy the new data to cache-line.
 static void writeData()
 {
     if (prev_is_write)
     {
-        uint8_t new_write_data[prev_write_size];
-        PIN_SafeCopy(&new_write_data, (const uint8_t*)prev_write_addr, prev_write_size);
-
-        Request req;
-        req.req_type = Request::Request_Type::WRITE;
-        req.addr = (uint64_t)prev_write_addr;
-
-        for (unsigned i = 0; i < NUM_CORES; i++)
+        for (unsigned int i = 0; i < NUM_CORES; i++)
         {
-            req.core_id = i;
-            mmu->va2pa(req);
-        
-            L1s[i]->modifyBlock(req.addr, new_write_data, prev_write_size);
-
-            /*
-            unsigned int offset = req.addr & (BLOCK_SIZE - 1);
-            std::vector<uint8_t> ori_data;
-            std::vector<uint8_t> new_data;
-            L1s[i]->getBlock(req.addr, ori_data, new_data);
-            bool passed = true;
-            for (unsigned int i = 0; i < prev_write_size; i++)
-            {
-                if (new_data[i + offset] != new_write_data[i])
-                {
-                    passed = false;
-                }
-            }
-            assert(passed);
-            ori_data.clear();
-            new_data.clear();
-
-
-            L2s[0]->getBlock(req.addr, ori_data, new_data);
-            passed = true;
-            for (unsigned int i = 0; i < prev_write_size; i++)
-            {
-                if (new_data[i + offset] != new_write_data[i])
-                {
-                    passed = false;
-                }
-            }
-            assert(passed);
-            ori_data.clear();
-            new_data.clear();
-
-            L3s[0]->getBlock(req.addr, ori_data, new_data);
-            passed = true;
-	    for (unsigned int i = 0; i < prev_write_size; i++)
+            for (unsigned int j = 0; j < prev_write_addrs.size(); j++)
 	    {
-		if (new_data[i + offset] != new_write_data[i])
-		{
-		    passed = false;
-		}
-	    }
-	    assert(passed);
-            ori_data.clear();
-            new_data.clear();
-            */
-        }
+                UINT32 prev_write_size = prev_write_sizes[j];
+                ADDRINT prev_write_addr = prev_write_addrs[j];
 
+                uint8_t new_write_data[prev_write_size];
+                PIN_SafeCopy(&new_write_data, (const uint8_t*)prev_write_addr, prev_write_size);
+
+                Request req;
+                req.req_type = Request::Request_Type::WRITE;
+                req.addr = (uint64_t)prev_write_addr;
+
+                req.core_id = i;
+                mmu->va2pa(req);
+        
+                L1s[i]->modifyBlock(req.addr, new_write_data, prev_write_size);
+            }
+        }
+        prev_write_addrs.clear();
+        prev_write_sizes.clear();
         prev_is_write = false;
     }
 }
@@ -137,6 +100,45 @@ static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 paylo
 {
     if (fast_forwarding) { return; }
     writeData(); // Finish up prev store insturction
+    
+    // Important! Check cross-block situations. Common in Python program.
+    std::vector<ADDRINT> addrs;
+    std::vector<UINT32> sizes;
+
+    ADDRINT aligned_addr_begin = mem_addr & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
+    ADDRINT aligned_addr_end = (mem_addr + (ADDRINT)payload_size - (ADDRINT)1) 
+                               & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
+    addrs.push_back(mem_addr); 
+    for (ADDRINT addr = aligned_addr_begin + BLOCK_SIZE; addr <= aligned_addr_end; addr += BLOCK_SIZE)
+    {
+        addrs.push_back(addr);
+    }
+
+    UINT32 payload_left = payload_size;
+    if (addrs.size() == 1)
+    {
+        sizes.push_back(payload_left);
+        payload_left = 0;
+    }
+    else
+    {
+        UINT32 chunk_size = (UINT32)BLOCK_SIZE - (UINT32)(mem_addr & ((ADDRINT)BLOCK_SIZE - (ADDRINT)1));
+        sizes.push_back(chunk_size);
+        payload_left -= chunk_size;
+    }
+    while (payload_left > 0)
+    {
+        if (payload_left > BLOCK_SIZE)
+        {
+            sizes.push_back(BLOCK_SIZE);
+            payload_left -= (UINT32)BLOCK_SIZE;
+        }
+        else
+        {
+            sizes.push_back(payload_left);
+            payload_left = 0;
+        }
+    }
 
     Request req;
 
@@ -146,73 +148,33 @@ static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 paylo
         req.req_type = Request::Request_Type::WRITE;
 
         prev_is_write = true;
-        prev_write_addr = mem_addr;
-        prev_write_size = payload_size;
+        for (auto addr : addrs) { prev_write_addrs.push_back(addr); }
+        for (auto size : sizes) { prev_write_sizes.push_back(size); }
     }
     else
     {
         req.req_type = Request::Request_Type::READ;
     }
-    req.addr = (uint64_t)mem_addr;
 
     for (unsigned i = 0; i < NUM_CORES; i++)
     {
         req.core_id = i;
-        mmu->va2pa(req);
 
-        bool hit = L1s[i]->send(req);
-        if (!hit)
+        for (auto addr : addrs)
         {
-            uint8_t data[BLOCK_SIZE];
+            req.addr = (uint64_t)addr;
+            mmu->va2pa(req);
 
-            ADDRINT aligned_addr = mem_addr & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
-            PIN_SafeCopy(&data, (const uint8_t*)aligned_addr, BLOCK_SIZE);
-
-            L1s[i]->loadBlock(req.addr, data, BLOCK_SIZE); // Load the entire block.
-           
-            /* 
-            std::vector<uint8_t> ori_data;
-            std::vector<uint8_t> new_data;
-            L1s[i]->getBlock(req.addr, ori_data, new_data);
-            bool passed = true;
-            for (unsigned int i = 0; i < BLOCK_SIZE; i++)
+            bool hit = L1s[i]->send(req);
+	    if (!hit)
             {
-                if (ori_data[i] != data[i] || new_data[i] != data[i])
-                {
-                    passed = false;
-                }
+                uint8_t data[BLOCK_SIZE];
+
+                ADDRINT aligned_addr = addr & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
+                PIN_SafeCopy(&data, (const uint8_t*)aligned_addr, BLOCK_SIZE);
+
+                L1s[i]->loadBlock(req.addr, data, BLOCK_SIZE); // Load the entire block.
             }
-            assert(passed);
-            ori_data.clear();
-            new_data.clear();
-
-
-            L2s[0]->getBlock(req.addr, ori_data, new_data);
-            passed = true;
-            for (unsigned int i = 0; i < BLOCK_SIZE; i++)
-            {
-                if (ori_data[i] != data[i] || new_data[i] != data[i])
-                {
-                    passed = false;
-                }
-            }
-            assert(passed);
-            ori_data.clear();
-            new_data.clear();
-
-            L3s[0]->getBlock(req.addr, ori_data, new_data);
-            passed = true;
-	    for (unsigned int i = 0; i < BLOCK_SIZE; i++)
-	    {
-		if (ori_data[i] != data[i] || new_data[i] != data[i])
-		{
-		    passed = false;
-		}
-	    }
-	    assert(passed);
-            ori_data.clear();
-            new_data.clear();
-            */
         }
     }
 }

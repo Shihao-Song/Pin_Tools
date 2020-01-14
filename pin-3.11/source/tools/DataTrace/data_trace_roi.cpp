@@ -20,58 +20,69 @@ static bool fast_forwarding = true; // Fast-forwarding mode?
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
     "c", "", "specify system configuration file name");
 #include "include/Sim/config.hh"
-Config *cfg;
+static Config *cfg;
 
 // Define MMU
 #include "include/System/mmu.hh"
 static unsigned int NUM_CORES;
-typedef System::SingleNode MMU;
-MMU *mmu;
+typedef System::SingleNode SingleNode;
+static SingleNode *mmu;
 
 // Define cache here
 static unsigned BLOCK_SIZE;
 #include "include/CacheSim/cache.hh"
 typedef CacheSimulator::SetWayAssocCache Cache;
-std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
+static std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 
 // Define data storage unit
 #include "include/Sim/data.hh"
-Data *data_storage;
-
-// Trace how many instructions executed.
-static const uint64_t SKIP = 1000000000;
-static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
-static void increCount() { ++insn_count; if (insn_count == SKIP) { fast_forwarding = false; } 
-                                         if (insn_count == SKIP + 250000000)
-                                         {
-                                             Stats stat;
-                                             stat.registerStats("Number of instructions: "
-                                                                + to_string(insn_count));
-
-                                             for (auto cache : L1s) { cache->registerStats(stat); }
-                                             for (auto cache : L2s) { cache->registerStats(stat); }
-                                             for (auto cache : L3s) { cache->registerStats(stat); }
-                                             for (auto cache : eDRAMs) { cache->registerStats(stat); }
-
-                                             stat.printf();
-					     exit(0);
-                                         }}
+static Data *data_storage;
 
 // We rely on the followings to capture the data to program.
-static bool prev_is_write = false;
-std::vector<ADDRINT> prev_write_addrs;
-std::vector<UINT32> prev_write_sizes;
-// TODO, copy the new data to cache-line.
-static void writeData()
+class thread_data_t
 {
-    if (prev_is_write)
+  public:
+    thread_data_t() {}
+
+    bool prev_is_write = false;
+    std::vector<ADDRINT> prev_write_addrs;
+    std::vector<UINT32> prev_write_sizes;
+};
+
+static TLS_KEY tls_key = INVALID_TLS_KEY;
+
+INT32 numThreads = 0;
+VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
+{
+    numThreads++;
+    thread_data_t* tdata = new thread_data_t;
+    if (PIN_SetThreadData(tls_key, tdata, threadid) == FALSE)
     {
+        std::cerr << "PIN_SetThreadData failed" << std::endl;
+        PIN_ExitProcess(1);
+    }
+}
+
+VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
+{
+    thread_data_t* tdata = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, threadIndex));
+    delete tdata;
+}
+
+PIN_LOCK pinLock;
+static void writeData(THREADID t_id)
+{
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
+
+    if (t_data->prev_is_write)
+    {
+        PIN_GetLock(&pinLock, t_id + 1);
         for (unsigned int i = 0; i < NUM_CORES; i++)
         {
-            for (unsigned int j = 0; j < prev_write_addrs.size(); j++)
+            for (unsigned int j = 0; j < (t_data->prev_write_addrs).size(); j++)
 	    {
-                UINT32 prev_write_size = prev_write_sizes[j];
-                ADDRINT prev_write_addr = prev_write_addrs[j];
+                UINT32 prev_write_size = (t_data->prev_write_sizes)[j];
+                ADDRINT prev_write_addr = (t_data->prev_write_addrs)[j];
 
                 uint8_t new_write_data[prev_write_size];
                 PIN_SafeCopy(&new_write_data, (const uint8_t*)prev_write_addr, prev_write_size);
@@ -88,24 +99,20 @@ static void writeData()
                                          prev_write_size);
             }
         }
-        prev_write_addrs.clear();
-        prev_write_sizes.clear();
-        prev_is_write = false;
+        (t_data->prev_write_addrs).clear();
+        (t_data->prev_write_sizes).clear();
+        t_data->prev_is_write = false;
+        PIN_ReleaseLock(&pinLock);
     }
 }
 
-static void nonMem() // Should disinguish different operations in the future
-{
-    if (fast_forwarding) { return; }
-    writeData(); // Finish up prev store insturction
-}
-
 // TODO, simulate store and load.
-static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
+static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
     if (fast_forwarding) { return; }
-    writeData(); // Finish up prev store insturction
-    
+   
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
+
     // Important! Check cross-block situations. Common in Python program.
     std::vector<ADDRINT> addrs;
     std::vector<UINT32> sizes;
@@ -153,25 +160,28 @@ static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 paylo
     {
         req.req_type = Request::Request_Type::WRITE;
 
-        prev_is_write = true;
-        for (auto addr : addrs) { prev_write_addrs.push_back(addr); }
-        for (auto size : sizes) { prev_write_sizes.push_back(size); }
+        t_data->prev_is_write = true;
+        for (auto addr : addrs) { (t_data->prev_write_addrs).push_back(addr); }
+        for (auto size : sizes) { (t_data->prev_write_sizes).push_back(size); }
     }
     else
     {
         req.req_type = Request::Request_Type::READ;
     }
 
-    for (unsigned i = 0; i < NUM_CORES; i++)
+    PIN_GetLock(&pinLock, t_id + 1);
+    for (unsigned int i = 0; i < NUM_CORES; i++)
     {
-        req.core_id = i;
-
-        for (auto addr : addrs)
+        for (unsigned int j = 0; j < addrs.size(); j++)
         {
+            ADDRINT addr = addrs[j];
+
+            req.core_id = i;
             req.addr = (uint64_t)addr;
             mmu->va2pa(req);
 
             bool hit = L1s[i]->send(req);
+
 	    if (!hit)
             {
                 uint8_t data[BLOCK_SIZE];
@@ -185,13 +195,31 @@ static void simMemOpr(ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 paylo
             }
         }
     }
+    PIN_ReleaseLock(&pinLock);
+}
+
+#define ROI_BEGIN    (1025)
+#define ROI_END      (1026)
+void HandleMagicOp(ADDRINT op)
+{
+    switch (op)
+    {
+        case ROI_BEGIN:
+            fast_forwarding = false;
+            // std::cout << "Captured roi_begin() \n";
+            return;
+        case ROI_END:
+            fast_forwarding = true;
+            // std::cout << "Captured roi_end() \n";
+            return;
+    }
 }
 
 // "Main" function: decode and simulate the instruction
 static void instructionSim(INS ins)
 {
     // Count number of instructions.
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_END);
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)writeData, IARG_THREAD_ID, IARG_END);
 
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
     {
@@ -203,6 +231,7 @@ static void instructionSim(INS ins)
                     ins,
                     IPOINT_BEFORE,
                     (AFUNPTR)simMemOpr,
+		    IARG_THREAD_ID,
                     IARG_ADDRINT, INS_Address(ins),
                     IARG_BOOL, FALSE,
                     IARG_MEMORYOP_EA, i,
@@ -216,6 +245,7 @@ static void instructionSim(INS ins)
                     ins,
                     IPOINT_BEFORE,
                     (AFUNPTR)simMemOpr,
+		    IARG_THREAD_ID,
                     IARG_ADDRINT, INS_Address(ins),
                     IARG_BOOL, TRUE,
                     IARG_MEMORYOP_EA, i,
@@ -224,10 +254,16 @@ static void instructionSim(INS ins)
             }
         }
     }
-    else
+    else if (INS_IsXchg(ins) &&
+             INS_OperandReg(ins, 0) == REG_RCX &&
+             INS_OperandReg(ins, 1) == REG_RCX)
     {
-        // Everything else except memory operations.
-        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)nonMem, IARG_END);
+        INS_InsertCall(
+            ins,
+            IPOINT_BEFORE,
+            (AFUNPTR) HandleMagicOp,
+            IARG_REG_VALUE, REG_ECX,
+            IARG_END);
     }
 }
 
@@ -248,9 +284,16 @@ static void traceCallback(TRACE trace, VOID *v)
     }
 }
 
+VOID Fini(INT32 code, VOID *v)
+{
+    std::cout << "Total number of threads = " << numThreads << std::endl;
+}
+
 int
 main(int argc, char *argv[])
 {
+    PIN_InitLock(&pinLock);
+
     PIN_InitSymbols(); // Initialize all the PIN API functions
 
     // Initialize PIN, e.g., process command line options
@@ -269,7 +312,7 @@ main(int argc, char *argv[])
     BLOCK_SIZE = cfg->block_size;
     
     // Create MMU
-    mmu = new MMU(NUM_CORES);
+    mmu = new SingleNode(NUM_CORES);
 
     // Create caches
     if (cfg->caches[int(Config::Cache_Level::L1D)].valid)
@@ -328,6 +371,24 @@ main(int argc, char *argv[])
     L3s[0]->setPrevLevel(L2s[0]);
     L3s[0]->traceOutput(&trace_out);
     L3s[0]->setStorageUnit(data_storage);
+
+
+    // Obtain  a key for TLS storage.
+    tls_key = PIN_CreateThreadDataKey(NULL);
+    if (tls_key == INVALID_TLS_KEY)
+    {
+        std::cerr << "number of already allocated keys reached the MAX_CLIENT_TLS_KEYS limit" << std::endl;
+        PIN_ExitProcess(1);
+    }
+
+    // Register ThreadStart to be called when a thread starts.
+    PIN_AddThreadStartFunction(ThreadStart, NULL);
+
+    // Register Fini to be called when thread exits.
+    PIN_AddThreadFiniFunction(ThreadFini, NULL);
+
+    // Register Fini to be called when the application exits.
+    PIN_AddFiniFunction(Fini, NULL);
 
     // RTN_AddInstrumentFunction(routineCallback, 0);
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.

@@ -11,13 +11,6 @@
 #include <string>
 
 // Let's consider an inclusive cache (easier to manage).
-//    (1) Every-time there is an eviction, the same block address from higher level must be invalidated;
-//    (2) Considering data-awareness, 1) all the new data needs to be sent to all levels; in this
-//                                        situation, the cache block must be in all levels of caches;
-//                                    2) the original data needs to be sent to all levels only when
-//                                        cache misses from all levels;
-//                                    3) when bringing block to higher level (hit in lower level),
-//                                        data from lower level should be copied.
 namespace CacheSimulator
 {
 // Should be a template.
@@ -108,13 +101,14 @@ class Cache : public MemObject
                 std::vector<uint8_t> ori_data;
                 std::vector<uint8_t> new_data;
 
-                getBlock(aligned_addr, ori_data, new_data);
-
+                assert(data != nullptr);
+                data->getData(victim_addr, ori_data, new_data);
                 assert(ori_data.size() > 0);
                 assert(new_data.size() > 0);
 
-		*trace_out << victim_addr << " W " << new_data.size() << " ";
+                *trace_out << victim_addr << " W " << new_data.size() << " ";
 
+                /*
                 for (unsigned int i = 0; i < ori_data.size(); i++)
                 {
                     *trace_out << int(ori_data[i]) << " ";
@@ -125,43 +119,20 @@ class Cache : public MemObject
                     *trace_out << int(new_data[i]) << " ";
                 }
                 *trace_out << int(new_data[new_data.size() - 1]) << "\n";
+                */
+                unsigned num_diff = 0;
+                for (unsigned int i = 0; i < ori_data.size(); i++)
+                {
+                    if (ori_data[i] != new_data[i]) { num_diff++; }
+                }
+                *trace_out << num_diff << "\n";
             }
         }
+        
         // Invalidate upper levels (inclusive)
         if (victim_addr != MaxAddr)
         {
             for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
-        }
-        tags.clearData(aligned_addr); // Clear all the old data
-
-        // Load new data from lower level if there is a hit there.
-        if (next_level_hit)
-        {
-            std::vector<uint8_t> ori_data;
-            std::vector<uint8_t> new_data;
-
-            next_level->getBlock(aligned_addr, ori_data, new_data);
-
-            assert(ori_data.size() > 0);
-            assert(new_data.size() > 0);
-
-            setBlock(aligned_addr, ori_data, new_data);
-
-            /*
-            std::vector<uint8_t> check_ori;
-            std::vector<uint8_t> check_new;
-            getBlock(aligned_addr, check_ori, check_new);
-            bool passed = true;
-            for (unsigned int i = 0; i < ori_data.size(); i++)
-            {
-                if (ori_data[i] != check_ori[i] || new_data[i] != check_new[i])
-                {
-                    passed = false;
-                }
-            }
-            assert(passed);
-            exit(0);
-            */
         }
 
 	return next_level_hit;
@@ -172,34 +143,6 @@ class Cache : public MemObject
         // Invalidate the block address
         tags.inval(_addr);
         for (auto &prev_level : prev_levels) { prev_level->inval(_addr); }
-    }
-
-    void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
-    {
-        tags.loadBlock(_addr, data, size);
-
-        if (next_level != nullptr) { next_level->loadBlock(_addr, data, size); }
-    }
-
-    void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size) override
-    {
-        tags.modifyBlock(_addr, data, size);
-
-        if (next_level != nullptr) { next_level->modifyBlock(_addr, data, size); }
-    }
-
-    void getBlock(uint64_t _addr,
-                  std::vector<uint8_t> &ori_data,
-                  std::vector<uint8_t> &new_data) override
-    {
-        tags.getBlock(_addr, ori_data, new_data);
-    }
-
-    void setBlock(uint64_t _addr,
-                  std::vector<uint8_t> &ori_data,
-                  std::vector<uint8_t> &new_data) override
-    {
-        tags.setBlock(_addr, ori_data, new_data);
     }
 
     void registerStats(Stats &stats) override

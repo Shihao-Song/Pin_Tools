@@ -44,22 +44,6 @@ class Tags
     // return val: <write-back required?, write-back address>
     virtual std::pair<bool, Addr> insertBlock(Addr addr, bool modify, Tick cur_clk = 0) = 0;
 
-    virtual void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size)
-    {}
-
-    virtual void loadBlock(uint64_t _addr, uint8_t *data, unsigned int size)
-    {}
-
-    virtual void getBlock(uint64_t _addr,
-                          std::vector<uint8_t> &ori_data,
-                          std::vector<uint8_t> &new_data) {}
-
-    virtual void setBlock(uint64_t _addr,
-                          std::vector<uint8_t> &ori_data,
-                          std::vector<uint8_t> &new_data) {}
-
-    virtual void clearData(uint64_t _addr) {}
-
     virtual void inval(uint64_t _addr) {}
 
     virtual void printTagInfo() {}

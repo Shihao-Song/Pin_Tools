@@ -6,6 +6,8 @@
 #include "request.hh"
 #include "stats.hh"
 
+#include "../Sim/data.hh"
+
 using std::ofstream;
 
 class MemObject
@@ -21,24 +23,14 @@ class MemObject
 
     virtual void setNextLevel(MemObject *_next_level) { next_level = _next_level; }
 
-    virtual void loadBlock(uint64_t _addr, uint8_t *source, unsigned int size) {}
-
-    virtual void modifyBlock(uint64_t _addr, uint8_t *data, unsigned int size) {}
-
-    virtual void getBlock(uint64_t _addr, 
-                          std::vector<uint8_t> &ori_data,
-                          std::vector<uint8_t> &new_data) {}
-
-    virtual void setBlock(uint64_t _addr, 
-                          std::vector<uint8_t> &ori_data,
-                          std::vector<uint8_t> &new_data) {}
-
     virtual void inval(uint64_t _addr) {}
 
     virtual void setId(int _id)
     {
         id = _id;
     }
+
+    virtual void setStorageUnit(Data *_data) { data = _data; }
 
     virtual void traceOutput(ofstream *_out) { trace_out = _out; }
 
@@ -47,6 +39,8 @@ class MemObject
     virtual void reInitialize() {}
 
   protected:
+    Data *data = nullptr;
+
     std::vector<MemObject*> prev_levels;
     MemObject *next_level = nullptr;
 

@@ -44,12 +44,6 @@ class Blk
 
     Tick when_touched; // Last clock tick the Block is touched.
 
-    // Data awareness.
-    // PCM usually adopts program-and-verify write scheme. So we need to know the original data
-    // as well as the new data.
-    std::vector<uint8_t> ori_data;
-    std::vector<uint8_t> new_data;
-
     // Advanced features, record instruction (EIP) that brings this block
     int core_id = -1;
     Addr eip;

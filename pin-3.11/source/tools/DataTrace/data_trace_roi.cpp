@@ -76,6 +76,7 @@ static void writeData(THREADID t_id)
 
     if (t_data->prev_is_write)
     {
+        // Lock storage-access
         PIN_GetLock(&pinLock, t_id + 1);
         for (unsigned int i = 0; i < NUM_CORES; i++)
         {
@@ -169,6 +170,7 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
         req.req_type = Request::Request_Type::READ;
     }
 
+    // Lock access-cache
     PIN_GetLock(&pinLock, t_id + 1);
     for (unsigned int i = 0; i < NUM_CORES; i++)
     {

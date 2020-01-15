@@ -70,6 +70,15 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
 }
 
 PIN_LOCK pinLock;
+static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
+static void increCount(THREADID t_id) 
+{
+    if (fast_forwarding) { return; }	
+    PIN_GetLock(&pinLock, t_id + 1);
+    ++insn_count;
+    PIN_ReleaseLock(&pinLock);
+}
+
 static void writeData(THREADID t_id)
 {
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
@@ -222,6 +231,9 @@ void HandleMagicOp(ADDRINT op)
 static void instructionSim(INS ins)
 {
     // Count number of instructions.
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
+
+    // Finish up prev store
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)writeData, IARG_THREAD_ID, IARG_END);
 
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
@@ -290,6 +302,25 @@ static void traceCallback(TRACE trace, VOID *v)
 VOID Fini(INT32 code, VOID *v)
 {
     std::cout << "Total number of threads = " << numThreads << std::endl;
+    Stats stat;
+    stat.registerStats("Number of instructions: "
+		        + to_string(insn_count));
+
+    for (auto cache : L1s) { cache->registerStats(stat); }
+    for (auto cache : L2s) { cache->registerStats(stat); }
+    for (auto cache : L3s) { cache->registerStats(stat); }
+    for (auto cache : eDRAMs) { cache->registerStats(stat); }
+
+    stat.printf();
+
+    for (auto cache : L1s) { delete cache; }
+    for (auto cache : L2s) { delete cache; }
+    for (auto cache : L3s) { delete cache; }
+    for (auto cache : eDRAMs) { delete cache; }
+
+    delete cfg;
+    delete mmu;
+    delete data_storage;
 }
 
 int

@@ -14,8 +14,7 @@ class MemObject
 {
   public:
     MemObject(){}
-    ~MemObject()
-    {}
+    virtual ~MemObject() {}
 
     virtual bool send(Request &req) = 0;
 

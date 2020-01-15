@@ -75,6 +75,8 @@ class MMU
         }
     }
 
+    virtual ~MMU() {}
+
     virtual void va2pa(Request &req)
     {
         Addr pa = mappers[req.core_id].va2pa(req.addr);

@@ -87,6 +87,7 @@ static void writeData(THREADID t_id)
     {
         // Lock storage-access
         PIN_GetLock(&pinLock, t_id + 1);
+        /*
         for (unsigned int i = 0; i < NUM_CORES; i++)
         {
             for (unsigned int j = 0; j < (t_data->prev_write_addrs).size(); j++)
@@ -109,6 +110,30 @@ static void writeData(THREADID t_id)
                                          prev_write_size);
             }
         }
+        */
+        // When simulating Tensorflow workloads.
+        for (unsigned int j = 0; j < (t_data->prev_write_addrs).size(); j++)
+        {
+            UINT32 prev_write_size = (t_data->prev_write_sizes)[j];
+            ADDRINT prev_write_addr = (t_data->prev_write_addrs)[j];
+
+            uint8_t new_write_data[prev_write_size];
+            PIN_SafeCopy(&new_write_data, (const uint8_t*)prev_write_addr, prev_write_size);
+
+            Request req;
+            req.req_type = Request::Request_Type::WRITE;
+            req.addr = (uint64_t)prev_write_addr;
+
+            req.core_id = (t_id % NUM_CORES);
+            assert(req.core_id < (signed)NUM_CORES);
+            assert(req.core_id >= 0);
+            mmu->va2pa(req);
+
+            data_storage->modifyData((req.addr & ~((uint64_t)BLOCK_SIZE - (uint64_t)1)),
+                                     new_write_data,
+                                     prev_write_size);
+        }
+
         (t_data->prev_write_addrs).clear();
         (t_data->prev_write_sizes).clear();
         t_data->prev_is_write = false;
@@ -182,6 +207,7 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
     // Lock access-cache
     PIN_GetLock(&pinLock, t_id + 1);
     // std::cout << "Thread " << t_id << " is accessing cache..." << std::endl;
+    /*
     for (unsigned int i = 0; i < NUM_CORES; i++)
     {
         for (unsigned int j = 0; j < addrs.size(); j++)
@@ -207,6 +233,34 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
             }
         }
     }
+    */
+    // When simulating tensorflow workloads
+    for (unsigned int j = 0; j < addrs.size(); j++)
+    {
+        ADDRINT addr = addrs[j];
+
+        req.core_id = (t_id % NUM_CORES);
+        assert(req.core_id < (signed)NUM_CORES);
+        assert(req.core_id >= 0);
+
+        req.addr = (uint64_t)addr;
+        mmu->va2pa(req);
+
+        bool hit = L1s[req.core_id]->send(req);
+
+        if (!hit)
+        {
+            uint8_t data[BLOCK_SIZE];
+
+            ADDRINT aligned_addr = addr & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
+            PIN_SafeCopy(&data, (const uint8_t*)aligned_addr, BLOCK_SIZE);
+
+            data_storage->loadData((req.addr & ~((uint64_t)BLOCK_SIZE - (uint64_t)1)),
+                                   data,
+                                   (unsigned)BLOCK_SIZE);
+        }
+    }
+
     PIN_ReleaseLock(&pinLock);
 }
 

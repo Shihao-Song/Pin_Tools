@@ -172,6 +172,7 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
 
     // Lock access-cache
     PIN_GetLock(&pinLock, t_id + 1);
+    // std::cout << "Thread " << t_id << " is accessing cache..." << std::endl;
     for (unsigned int i = 0; i < NUM_CORES; i++)
     {
         for (unsigned int j = 0; j < addrs.size(); j++)

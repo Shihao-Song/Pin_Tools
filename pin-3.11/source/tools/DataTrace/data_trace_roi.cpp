@@ -38,6 +38,7 @@ static std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 #include "include/Sim/data.hh"
 static Data *data_storage;
 
+PIN_LOCK pinLock;
 // We rely on the followings to capture the data to program.
 class thread_data_t
 {
@@ -69,7 +70,21 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
     delete tdata;
 }
 
-PIN_LOCK pinLock;
+BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
+{
+    INT appArgc;
+    CHAR const * const * appArgv;
+
+    CHILD_PROCESS_GetCommandLine(childProcess, &appArgc, &appArgv);
+    std::string childApp(appArgv[0]);
+
+    std::cerr << std::endl;
+    std::cerr << "[Pintool] Warning: Child application to execute: " << childApp << std::endl;
+    std::cerr << "[Pintool] Warning: We do not run Pin under the child process." << std::endl;
+    std::cerr << std::endl;
+    return FALSE;
+}
+
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount(THREADID t_id) 
 {
@@ -214,16 +229,20 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
 
 #define ROI_BEGIN    (1025)
 #define ROI_END      (1026)
-void HandleMagicOp(ADDRINT op)
+void HandleMagicOp(THREADID t_id, ADDRINT op)
 {
     switch (op)
     {
         case ROI_BEGIN:
+            PIN_GetLock(&pinLock, t_id + 1);
             fast_forwarding = false;
+            PIN_ReleaseLock(&pinLock);
             // std::cout << "Captured roi_begin() \n";
             return;
         case ROI_END:
+            PIN_GetLock(&pinLock, t_id + 1);
             fast_forwarding = true;
+            PIN_ReleaseLock(&pinLock);
             // std::cout << "Captured roi_end() \n";
             return;
     }
@@ -279,6 +298,7 @@ static void instructionSim(INS ins)
             ins,
             IPOINT_BEFORE,
             (AFUNPTR) HandleMagicOp,
+            IARG_THREAD_ID,
             IARG_REG_VALUE, REG_ECX,
             IARG_END);
     }
@@ -408,7 +428,6 @@ main(int argc, char *argv[])
     L3s[0]->traceOutput(&trace_out);
     L3s[0]->setStorageUnit(data_storage);
 
-
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(NULL);
     if (tls_key == INVALID_TLS_KEY)
@@ -425,6 +444,8 @@ main(int argc, char *argv[])
 
     // Register Fini to be called when the application exits.
     PIN_AddFiniFunction(Fini, NULL);
+
+    PIN_AddFollowChildProcessFunction(FollowChild, 0);
 
     // RTN_AddInstrumentFunction(routineCallback, 0);
     // Simulate each instruction, to eliminate overhead, we are using Trace-based call back.

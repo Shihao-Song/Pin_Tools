@@ -87,7 +87,7 @@ class MMU
 class SingleNode : public MMU
 {
   protected:
-    // All the touched pages for each core.
+    // All the touched pages for each core (application/memory space).
     std::vector<std::unordered_map<Addr,Addr>> pages_by_cores;
 
     // A pool of free physical pages

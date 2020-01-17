@@ -96,6 +96,10 @@ static void increCount(THREADID t_id)
 
 static void writeData(THREADID t_id)
 {
+    return;
+    std::cerr << "Counting number of instructions only..." << std::endl;
+    exit(0);
+
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
 
     if (t_data->prev_is_write)
@@ -135,6 +139,10 @@ static void writeData(THREADID t_id)
 // TODO, simulate store and load.
 static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
 {
+    return;
+    std::cerr << "Counting number of instructions only..." << std::endl;
+    exit(0);
+
     if (fast_forwarding) { return; }
    
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));

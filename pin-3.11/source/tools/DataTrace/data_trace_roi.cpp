@@ -14,7 +14,8 @@ ofstream trace_out;
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
     "o", "", "specify output trace file name");
 
-static bool fast_forwarding = true; // Fast-forwarding mode?
+static bool fast_forwarding = true; // Fast-forwarding mode? Initially, we should be
+                                    // in fast-forwarding mode.
 
 // Define config here
 KNOB<std::string> CfgFile(KNOB_MODE_WRITEONCE, "pintool",
@@ -25,7 +26,7 @@ static Config *cfg;
 // Define MMU
 #include "include/System/mmu.hh"
 static unsigned int NUM_CORES;
-typedef System::SingleNode SingleNode;
+typedef System::SingleNode SingleNode; // A bit advanced MMU.
 static SingleNode *mmu;
 
 // Define cache here
@@ -94,6 +95,7 @@ static void increCount(THREADID t_id)
     PIN_ReleaseLock(&pinLock);
 }
 
+/*
 static void writeData(THREADID t_id)
 {
     return;
@@ -135,9 +137,14 @@ static void writeData(THREADID t_id)
         PIN_ReleaseLock(&pinLock);
     }
 }
+*/
 
 // TODO, simulate store and load.
-static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_addr, UINT32 payload_size)
+static void simMemOpr(THREADID t_id,
+                      ADDRINT eip,
+                      bool is_store,
+                      ADDRINT mem_addr,
+                      UINT32 payload_size)
 {
     return;
     std::cerr << "Counting number of instructions only..." << std::endl;
@@ -155,7 +162,9 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
     ADDRINT aligned_addr_end = (mem_addr + (ADDRINT)payload_size - (ADDRINT)1) 
                                & ~((ADDRINT)BLOCK_SIZE - (ADDRINT)1);
     addrs.push_back(mem_addr); 
-    for (ADDRINT addr = aligned_addr_begin + BLOCK_SIZE; addr <= aligned_addr_end; addr += BLOCK_SIZE)
+    for (ADDRINT addr = aligned_addr_begin + BLOCK_SIZE;
+                addr <= aligned_addr_end;
+                addr += BLOCK_SIZE)
     {
         addrs.push_back(addr);
     }
@@ -168,7 +177,8 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
     }
     else
     {
-        UINT32 chunk_size = (UINT32)BLOCK_SIZE - (UINT32)(mem_addr & ((ADDRINT)BLOCK_SIZE - (ADDRINT)1));
+        UINT32 chunk_size = (UINT32)BLOCK_SIZE - 
+                            (UINT32)(mem_addr & ((ADDRINT)BLOCK_SIZE - (ADDRINT)1));
         sizes.push_back(chunk_size);
         payload_left -= chunk_size;
     }
@@ -216,8 +226,10 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
             req.addr = (uint64_t)addr;
             mmu->va2pa(req);
 
-            bool hit = L1s[i]->send(req);
+            L1s[i]->send(req);
+            // bool hit = L1s[i]->send(req);
 
+            /*
 	    if (!hit)
             {
                 uint8_t data[BLOCK_SIZE];
@@ -229,6 +241,7 @@ static void simMemOpr(THREADID t_id, ADDRINT eip, bool is_store, ADDRINT mem_add
                                        data,
                                        (unsigned)BLOCK_SIZE);
             }
+            */
         }
     }
     
@@ -262,8 +275,8 @@ static void instructionSim(INS ins)
     // Count number of instructions.
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
 
-    // Finish up prev store
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)writeData, IARG_THREAD_ID, IARG_END);
+    // Finish up prev store (disabled for now).
+    // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)writeData, IARG_THREAD_ID, IARG_END);
 
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
     {

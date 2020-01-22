@@ -13,6 +13,7 @@
 // Let's consider an inclusive cache (easier to manage).
 namespace CacheSimulator
 {
+// TODO, the data-awareness is disabled for some other experiments.
 // Should be a template.
 template<typename T>
 class Cache : public MemObject
@@ -66,11 +67,13 @@ class Cache : public MemObject
                 next_level_hit = next_level->send(req);
 
             }
+            /*
             else
             {
                 // Output off-chip read traffic
                 *trace_out << aligned_addr << " R\n";
             }
+            */
         }
 
         // Insert the missed block
@@ -95,6 +98,7 @@ class Cache : public MemObject
 
                 next_level->send(req); // send to lower levels
             }
+            /*
             else
             {
                 // Output off-chip write traffic
@@ -108,7 +112,6 @@ class Cache : public MemObject
 
                 *trace_out << victim_addr << " W " << new_data.size() << " ";
 
-                /*
                 for (unsigned int i = 0; i < ori_data.size(); i++)
                 {
                     *trace_out << int(ori_data[i]) << " ";
@@ -119,14 +122,15 @@ class Cache : public MemObject
                     *trace_out << int(new_data[i]) << " ";
                 }
                 *trace_out << int(new_data[new_data.size() - 1]) << "\n";
-                */
-                unsigned num_diff = 0;
-                for (unsigned int i = 0; i < ori_data.size(); i++)
-                {
-                    if (ori_data[i] != new_data[i]) { num_diff++; }
-                }
-                *trace_out << num_diff << "\n";
+
+                // unsigned num_diff = 0;
+                // for (unsigned int i = 0; i < ori_data.size(); i++)
+                // {
+                //     if (ori_data[i] != new_data[i]) { num_diff++; }
+                // }
+                // *trace_out << num_diff << "\n";
             }
+            */
         }
         
         // Invalidate upper levels (inclusive)
@@ -135,12 +139,14 @@ class Cache : public MemObject
             for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
         }
 
+        /*
         // Delete data from data storage when there is a (valid) eviction from LLC.
         if (victim_addr != MaxAddr && next_level == nullptr)
         {
             assert(data != nullptr);
             data->deleteData(victim_addr);
         }
+        */
 
 	return next_level_hit;
     }

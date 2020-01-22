@@ -12,7 +12,8 @@
 // Total execution time: CPU clock cycles (1-CPI model) + off-chip timings
 // Off-chip timings: number of LLC loads * nclks-to-read + 
 //                   number of LLC evictions * nclks-to-write
-// For any in-correct prediction, there is a LLC load. (TODO, not sure about this one.)
+// TODO, how to handle branch misprediction. (Sniper sim, a hard-coded number)
+// TODO, add an instruction cache. (simple to do)
 
 // Data trace output
 using std::ofstream;

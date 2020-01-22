@@ -12,7 +12,9 @@
 // Total execution time: CPU clock cycles (1-CPI model) + off-chip timings
 // Off-chip timings: number of LLC loads * nclks-to-read + 
 //                   number of LLC evictions * nclks-to-write
-// TODO, how to handle branch misprediction. (Sniper sim, a hard-coded number)
+// TODO, add a branch predictor.
+// TODO, how to handle branch misprediction.
+//     (Sniper sim, a hard-coded number, 15 is a reasonable number)
 // TODO, add an instruction cache. (simple to do)
 
 // Data trace output

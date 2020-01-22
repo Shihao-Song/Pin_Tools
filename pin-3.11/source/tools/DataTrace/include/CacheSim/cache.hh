@@ -135,6 +135,13 @@ class Cache : public MemObject
             for (auto &prev_level : prev_levels) { prev_level->inval(victim_addr); }
         }
 
+        // Delete data from data storage when there is a (valid) eviction from LLC.
+        if (victim_addr != MaxAddr && next_level == nullptr)
+        {
+            assert(data != nullptr);
+            data->deleteData(victim_addr);
+        }
+
 	return next_level_hit;
     }
 

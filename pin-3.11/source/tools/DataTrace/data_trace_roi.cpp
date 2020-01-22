@@ -8,6 +8,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
+// Performance approxi.
+// Total execution time: CPU clock cycles (1-CPI model) + off-chip timings
+// Off-chip timings: number of LLC loads * nclks-to-read + 
+//                   number of LLC evictions * nclks-to-write
+// For any in-correct prediction, there is a LLC load. (TODO, not sure about this one.)
+
 // Data trace output
 using std::ofstream;
 ofstream trace_out;

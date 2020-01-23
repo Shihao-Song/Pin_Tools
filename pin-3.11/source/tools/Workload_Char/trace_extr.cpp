@@ -82,7 +82,7 @@ static void bpTrace(THREADID t_id,
         num_exes_before_mem = 0;
     }
 
-    trace_out << eip << " " << taken << "\n";
+    trace_out << eip << " B " << taken << "\n";
     PIN_ReleaseLock(&pinLock);
 }
 

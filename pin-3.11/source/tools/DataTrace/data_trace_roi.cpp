@@ -95,12 +95,42 @@ BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
     return FALSE;
 }
 
+static const uint64_t LIMIT = 1000000000;
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount(THREADID t_id) 
 {
     if (fast_forwarding) { return; }	
     PIN_GetLock(&pinLock, t_id + 1);
     ++insn_count;
+
+    // Exit if it exceeds a threshold.
+    if (insn_count >= LIMIT)
+    {
+        std::cout << "Total number of threads = " << numThreads << std::endl;
+        Stats stat;
+        stat.registerStats("Number of instructions: "
+                           + to_string(insn_count));
+
+        for (auto cache : L1s) { cache->registerStats(stat); }
+        for (auto cache : L2s) { cache->registerStats(stat); }
+        for (auto cache : L3s) { cache->registerStats(stat); }
+        for (auto cache : eDRAMs) { cache->registerStats(stat); }
+
+        stat.printf();
+
+        for (auto cache : L1s) { delete cache; }
+        for (auto cache : L2s) { delete cache; }
+        for (auto cache : L3s) { delete cache; }
+        for (auto cache : eDRAMs) { delete cache; }
+
+        delete cfg;
+        delete mmu;
+        delete data_storage;
+
+        exit(0);
+        // PIN_ExitApplication(0);
+    }
+
     PIN_ReleaseLock(&pinLock);
 }
 
@@ -387,10 +417,10 @@ main(int argc, char *argv[])
     {
         return 1;
     }
-    assert(!TraceOut.Value().empty());
+    // assert(!TraceOut.Value().empty());
     assert(!CfgFile.Value().empty());
 
-    trace_out.open(TraceOut.Value().c_str());
+    // trace_out.open(TraceOut.Value().c_str());
 
     // Parse configuration file
     cfg = new Config(CfgFile.Value());

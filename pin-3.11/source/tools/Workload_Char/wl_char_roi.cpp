@@ -48,6 +48,10 @@ static std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
 #include "include/Sim/data.hh"
 static Data *data_storage;
 
+// Stats output
+KNOB<std::string> StatsOut(KNOB_MODE_WRITEONCE, "pintool",
+    "s", "", "specify output stats file");
+
 PIN_LOCK pinLock;
 // We rely on the followings to capture the data to program.
 class thread_data_t
@@ -185,9 +189,9 @@ static void simMemOpr(THREADID t_id,
                       ADDRINT mem_addr,
                       UINT32 payload_size)
 {
-    return;
-    std::cerr << "Counting number of instructions only..." << std::endl;
-    exit(0);
+    // return;
+    // std::cerr << "Counting number of instructions only..." << std::endl;
+    // exit(0);
 
     if (fast_forwarding) { return; }
    

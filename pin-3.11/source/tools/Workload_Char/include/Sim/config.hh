@@ -16,7 +16,7 @@ class Config
 
     enum Cache_Level : int
     {
-        L1D, L2, L3, eDRAM, MAX
+        L1I, L1D, L2, L3, eDRAM, MAX
     };
 
     struct Cache_Info
@@ -85,6 +85,10 @@ class Config
 	    else if(tokens[0] == "block_size")
             {
                 block_size = atoi(tokens[1].c_str());
+            }
+            else if(tokens[0].find("L1I") != std::string::npos)
+            {
+                extractCacheInfo(Cache_Level::L1I, tokens);
             }
             else if(tokens[0].find("L1D") != std::string::npos)
             {

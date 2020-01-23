@@ -19,6 +19,8 @@ struct Request
 
     Addr addr; // The address we are trying to read or write
 
+    bool instr_loading = false; // Any instruction loading should not be in the critical path.
+
     // (Memory) request type
     enum class Request_Type : int
     {

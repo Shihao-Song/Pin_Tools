@@ -27,12 +27,21 @@ class Cache : public MemObject
         tags.level_str = level_name;
     }
 
-    bool send(Request &req) override
+    bool send(Request &request) override
     {
         accesses++; // Emulate a timer for LRU.
-        
-        auto access_info = tags.accessBlock(req.addr,
-                                            req.req_type != Request::Request_Type::READ ?
+        // Collect more stats
+        if (request.req_type == Request::Request_Type::READ)
+        {
+            read_accesses++;
+        }
+        else
+        {
+            write_accesses++;
+        }
+
+        auto access_info = tags.accessBlock(request.addr,
+                                            request.req_type != Request::Request_Type::READ ?
                                             true : false,
                                             accesses);
 
@@ -42,24 +51,33 @@ class Cache : public MemObject
         if (hit)
         {
             // I don't consider write-back hit as normal cache hits.
-            if (req.req_type != Request::Request_Type::WRITE_BACK)
-            {
+            // if (req.req_type != Request::Request_Type::WRITE_BACK)
+            // {
                 ++num_hits;
-            }
+            // }
             return true;
         }
+        ++num_misses;
 
         // For any read/write miss, the cache needs to load the block from lower level.
         bool next_level_hit = false;
-        if (req.req_type != Request::Request_Type::WRITE_BACK)
+        if (request.req_type != Request::Request_Type::WRITE_BACK)
         {
-            ++num_misses;
-            ++num_loads;
+            // Instruction loadings are not in the critical path.
+            if (request.instr_loading == false)
+            {
+                ++num_data_loads;
+            }
+            else
+            {
+                ++num_instr_loads;
+            }
 
             // Send a loading request to next level.
             if (next_level != nullptr)
             {
                 Request req;
+                req.instr_loading = request.instr_loading;
 
                 req.addr = aligned_addr; // Address of the missed block.
                 req.req_type = Request::Request_Type::READ; // Loading (Always)
@@ -78,7 +96,7 @@ class Cache : public MemObject
 
         // Insert the missed block
         auto insert_info = tags.insertBlock(aligned_addr,
-                                            req.req_type != Request::Request_Type::READ ?
+                                            request.req_type != Request::Request_Type::READ ?
                                             true : false,
                                             accesses);
         bool wb_required = insert_info.first;
@@ -161,33 +179,47 @@ class Cache : public MemObject
     void registerStats(Stats &stats) override
     {
         std::string registeree_name = level_name;
+        /*
+        // Let's only consider one core so far.
         if (id != -1)
         {
             registeree_name = "Core-" + to_string(id) + "-" + 
                               registeree_name;
         }
-
+        */
+         
+        stats.registerStats(registeree_name +
+                            ": Number of accesses = " + to_string(accesses));
+        stats.registerStats(registeree_name +
+                            ": Number of read accesses = " + to_string(read_accesses)); 
+        stats.registerStats(registeree_name +
+                            ": Number of write accesses = " + to_string(write_accesses));
         stats.registerStats(registeree_name +
                             ": Number of hits = " + to_string(num_hits));
         stats.registerStats(registeree_name +
                             ": Number of misses = " + to_string(num_misses));
-
         double hit_ratio = double(num_hits) / (double(num_hits) + double(num_misses)) * 100;
         stats.registerStats(registeree_name + 
                             ": Hit ratio = " + to_string(hit_ratio) + "%");
-
         stats.registerStats(registeree_name +
-                            ": Number of Loads = " + to_string(num_loads));        
+            ": Number of instruction loadings = " + to_string(num_instr_loads));
         stats.registerStats(registeree_name +
-                            ": Number of Evictions = " + to_string(num_evicts));
+            ": Number of data loadings = " + to_string(num_data_loads));
+        stats.registerStats(registeree_name +
+                            ": Number of evictions = " + 
+                            to_string(num_evicts) + "\n");
     }
 
   protected:
     const Addr MaxAddr = (Addr) - 1;
 
     Tick accesses = 0; // We are using this for LRU policy.
+    
+    uint64_t read_accesses = 0;
+    uint64_t write_accesses = 0;
 
-    uint64_t num_loads = 0;
+    uint64_t num_instr_loads = 0;
+    uint64_t num_data_loads = 0;
     uint64_t num_evicts = 0;
     uint64_t num_misses = 0;
     uint64_t num_hits = 0;
@@ -198,7 +230,11 @@ class Cache : public MemObject
     std::string level_name;
     std::string toString()
     {
-        if (level == Config::Cache_Level::L1D)
+        if (level == Config::Cache_Level::L1I)
+        {
+            return std::string("L1-I");
+        }
+	else if (level == Config::Cache_Level::L1D)
         {
             return std::string("L1-D");
         }

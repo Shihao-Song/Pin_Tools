@@ -38,6 +38,7 @@ class Stats
             out << entry;
         }
         out << std::flush;
+	out.close();
     }
 };
 

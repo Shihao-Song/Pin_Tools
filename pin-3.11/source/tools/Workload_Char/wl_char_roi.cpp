@@ -9,13 +9,12 @@
 #include <sys/stat.h>
 
 // Performance approxi.
-// Total execution time: CPU clock cycles (1-CPI model) + off-chip timings
+// Total execution time: off-chip timings + branch_predictor_penalties.
 // Off-chip timings: number of LLC loads * nclks-to-read + 
 //                   number of LLC evictions * nclks-to-write
 // TODO, add a branch predictor.
 // TODO, how to handle branch misprediction.
 //     (Sniper sim, a hard-coded number, 15 is a reasonable number)
-// TODO, add an instruction cache. (simple to do)
 
 // Data trace output
 using std::ofstream;
@@ -42,7 +41,7 @@ static SingleNode *mmu;
 static unsigned BLOCK_SIZE;
 #include "include/CacheSim/cache.hh"
 typedef CacheSimulator::SetWayAssocCache Cache;
-static std::vector<Cache*> L1s, L2s, L3s, eDRAMs;
+static std::vector<Cache*> L1Is, L1Ds, L2s, L3s, eDRAMs;
 
 // Define data storage unit
 #include "include/Sim/data.hh"
@@ -110,19 +109,21 @@ static void increCount(THREADID t_id)
     // Exit if it exceeds a threshold.
     if (insn_count >= LIMIT)
     {
-        std::cout << "Total number of threads = " << numThreads << std::endl;
+        // std::cout << "Total number of threads = " << numThreads << std::endl;
         Stats stat;
         stat.registerStats("Number of instructions: "
-                           + to_string(insn_count));
+                           + to_string(insn_count) + "\n");
 
-        for (auto cache : L1s) { cache->registerStats(stat); }
+        for (auto cache : L1Is) { cache->registerStats(stat); }
+        for (auto cache : L1Ds) { cache->registerStats(stat); }
         for (auto cache : L2s) { cache->registerStats(stat); }
         for (auto cache : L3s) { cache->registerStats(stat); }
         for (auto cache : eDRAMs) { cache->registerStats(stat); }
 
-        stat.printf();
+        stat.outputStats(StatsOut.Value().c_str());
 
-        for (auto cache : L1s) { delete cache; }
+        for (auto cache : L1Is) { delete cache; }
+        for (auto cache : L1Ds) { delete cache; }
         for (auto cache : L2s) { delete cache; }
         for (auto cache : L3s) { delete cache; }
         for (auto cache : eDRAMs) { delete cache; }
@@ -132,7 +133,6 @@ static void increCount(THREADID t_id)
         delete data_storage;
 
         exit(0);
-        // PIN_ExitApplication(0);
     }
 
     PIN_ReleaseLock(&pinLock);
@@ -181,6 +181,29 @@ static void writeData(THREADID t_id)
     }
 }
 */
+
+static void simInstrCache(THREADID t_id,
+                          ADDRINT eip)
+{
+    if (fast_forwarding) { return; }
+
+    Request req;
+    req.instr_loading = true;
+    req.req_type = Request::Request_Type::READ;
+    req.addr = (uint64_t)eip;
+
+    PIN_GetLock(&pinLock, t_id + 1);
+    // std::cout << "Thread " << t_id << " is accessing cache..." << std::endl;
+    for (unsigned int i = 0; i < NUM_CORES; i++)
+    {
+        req.core_id = i;
+        mmu->va2pa(req); // TODO, any instruction loading should be marked.
+
+        L1Is[i]->send(req);
+    }
+    
+    PIN_ReleaseLock(&pinLock);
+}
 
 // TODO, simulate store and load.
 static void simMemOpr(THREADID t_id,
@@ -269,8 +292,8 @@ static void simMemOpr(THREADID t_id,
             req.addr = (uint64_t)addr;
             mmu->va2pa(req);
 
-            L1s[i]->send(req);
-            // bool hit = L1s[i]->send(req);
+            L1Ds[i]->send(req);
+            // bool hit = L1Ds[i]->send(req);
 
             /*
 	    if (!hit)
@@ -317,6 +340,14 @@ static void instructionSim(INS ins)
 {
     // Count number of instructions.
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
+
+    // Simulate instruction cache
+    INS_InsertCall(ins, 
+                   IPOINT_BEFORE,
+                   (AFUNPTR)simInstrCache,
+                   IARG_THREAD_ID,
+                   IARG_ADDRINT, INS_Address(ins),
+                   IARG_END);
 
     // Finish up prev store (disabled for now).
     // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)writeData, IARG_THREAD_ID, IARG_END);
@@ -392,14 +423,16 @@ VOID Fini(INT32 code, VOID *v)
     stat.registerStats("Number of instructions: "
 		        + to_string(insn_count));
 
-    for (auto cache : L1s) { cache->registerStats(stat); }
+    for (auto cache : L1Is) { cache->registerStats(stat); }
+    for (auto cache : L1Ds) { cache->registerStats(stat); }
     for (auto cache : L2s) { cache->registerStats(stat); }
     for (auto cache : L3s) { cache->registerStats(stat); }
     for (auto cache : eDRAMs) { cache->registerStats(stat); }
 
-    stat.printf();
+    stat.outputStats(StatsOut.Value().c_str());
 
-    for (auto cache : L1s) { delete cache; }
+    for (auto cache : L1Is) { delete cache; }
+    for (auto cache : L1Ds) { delete cache; }
     for (auto cache : L2s) { delete cache; }
     for (auto cache : L3s) { delete cache; }
     for (auto cache : eDRAMs) { delete cache; }
@@ -423,24 +456,36 @@ main(int argc, char *argv[])
     }
     // assert(!TraceOut.Value().empty());
     assert(!CfgFile.Value().empty());
+    assert(!StatsOut.Value().empty());
 
     // trace_out.open(TraceOut.Value().c_str());
 
     // Parse configuration file
     cfg = new Config(CfgFile.Value());
     NUM_CORES = cfg->num_cores;
+    assert(NUM_CORES == 1); // TODO, should delete this for future analysis.
+
     BLOCK_SIZE = cfg->block_size;
     
     // Create MMU
     mmu = new SingleNode(NUM_CORES);
 
     // Create caches
+    if (cfg->caches[int(Config::Cache_Level::L1I)].valid)
+    {
+        for (unsigned i = 0; i < NUM_CORES; i++)
+        {
+            L1Is.emplace_back(new Cache(Config::Cache_Level::L1I, *cfg));
+            L1Is[i]->setId(i);
+        }
+    }
+
     if (cfg->caches[int(Config::Cache_Level::L1D)].valid)
     {
         for (unsigned i = 0; i < NUM_CORES; i++)
         {
-            L1s.emplace_back(new Cache(Config::Cache_Level::L1D, *cfg));
-            L1s[i]->setId(i);
+            L1Ds.emplace_back(new Cache(Config::Cache_Level::L1D, *cfg));
+            L1Ds[i]->setId(i);
         }
     }
 
@@ -479,18 +524,23 @@ main(int argc, char *argv[])
     // Data storage
     data_storage = new Data(BLOCK_SIZE);
 
-    // Power-9 setup
-    assert(L2s.size() == 1);
-    for (unsigned i = 0; i < NUM_CORES; i++)
-    {
-        L1s[i]->setNextLevel(L2s[0]);
-        L2s[0]->setPrevLevel(L1s[i]); // Should be a vector
-    }
+    /*
+    // skylake setup
+    L1Is[0]->setNextLevel(L2s[0]);
+    L1Ds[0]->setNextLevel(L2s[0]);
+    L2s[0]->setPrevLevel(L1Is[0]);
+    L2s[0]->setPrevLevel(L1Ds[0]);
 
     L2s[0]->setNextLevel(L3s[0]);
     L3s[0]->setPrevLevel(L2s[0]);
     L3s[0]->traceOutput(&trace_out);
     L3s[0]->setStorageUnit(data_storage);
+    */
+    // cortex a-76 setup
+    L1Is[0]->setNextLevel(L2s[0]);
+    L1Ds[0]->setNextLevel(L2s[0]);
+    L2s[0]->setPrevLevel(L1Is[0]);
+    L2s[0]->setPrevLevel(L1Ds[0]);
 
     // Obtain  a key for TLS storage.
     tls_key = PIN_CreateThreadDataKey(NULL);

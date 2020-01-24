@@ -82,7 +82,7 @@ static void bpTrace(THREADID t_id,
         num_exes_before_mem = 0;
     }
 
-    trace_out << eip << " B " << taken << "\n";
+    trace_out << eip << " B " << taken << std::endl;
     PIN_ReleaseLock(&pinLock);
 }
 
@@ -106,7 +106,7 @@ static void memTrace(THREADID t_id,
     trace_out << eip << " ";
     if (is_store) { trace_out << "S "; }
     else { trace_out << "L "; }
-    trace_out << mem_addr << "\n";
+    trace_out << mem_addr << std::endl;
 
     PIN_ReleaseLock(&pinLock);
 }

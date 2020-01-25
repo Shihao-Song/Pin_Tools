@@ -14,11 +14,6 @@ ofstream trace_out;
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
     "o", "", "specify output trace file name");
 
-static bool fast_forwarding = true; // Fast-forwarding mode? Initially, we should be
-                                    // in fast-forwarding mode.
-
-PIN_LOCK pinLock;
-
 BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
 {
     INT appArgc;
@@ -34,7 +29,11 @@ BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
     return FALSE;
 }
 
-static const uint64_t LIMIT = 1000000000;
+static bool fast_forwarding = true; // Fast-forwarding mode? Initially, we should be
+                                    // in fast-forwarding mode.
+PIN_LOCK pinLock;
+static const uint64_t LIMIT = 1000000000; // Maximum of instructions (all threads) 
+                                          // to be extracted.
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount(THREADID t_id) 
 {
@@ -47,25 +46,56 @@ static void increCount(THREADID t_id)
     // Exit if it exceeds a threshold.
     if (insn_count >= LIMIT)
     {
+        std::cerr << "Done trace extraction." << std::endl;
         trace_out << std::flush;
+	trace_out.close();
         exit(0);
+        // PIN_ExitApplication(0);
     }
 
     PIN_ReleaseLock(&pinLock);
 }
 
-static unsigned num_exes_before_mem = 0;
+// Thread local data
+class thread_data_t
+{
+  public:
+    thread_data_t() {}
+
+    unsigned num_exes_before_mem_or_bra = 0;
+};
+
+static TLS_KEY tls_key = INVALID_TLS_KEY;
+
+INT32 numThreads = 0;
+VOID ThreadStart(THREADID threadid, CONTEXT *ctxt, INT32 flags, VOID *v)
+{
+    numThreads++;
+    thread_data_t* tdata = new thread_data_t;
+    if (PIN_SetThreadData(tls_key, tdata, threadid) == FALSE)
+    {
+        std::cerr << "PIN_SetThreadData failed" << std::endl;
+        PIN_ExitProcess(1);
+    }
+}
+
+VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
+{
+    thread_data_t* tdata = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, threadIndex));
+    delete tdata;
+}
+
 static void nonBranchNorMem(THREADID t_id)
 {
     if (fast_forwarding) { return; }
 
-    PIN_GetLock(&pinLock, t_id + 1);
-    num_exes_before_mem++;
-    PIN_ReleaseLock(&pinLock);
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
 
-    return;
+    // Only increment thread data.
+    ++(t_data->num_exes_before_mem_or_bra);
 }
 
+#include "include/Sim/util.hh"
 static void bpTrace(THREADID t_id,
                     ADDRINT eip,
 		    BOOL taken,
@@ -73,17 +103,20 @@ static void bpTrace(THREADID t_id,
 {
     if (fast_forwarding) { return; }
 
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
+
     // Lock the print out
     PIN_GetLock(&pinLock, t_id + 1);
-    // Absorb non-mem and non-branch instructions.
-    if (num_exes_before_mem != 0)
-    {
-        trace_out << num_exes_before_mem << " ";
-        num_exes_before_mem = 0;
-    }
 
-    trace_out << eip << " B " << taken << std::endl;
+    trace_out << t_id << " "
+              << t_data->num_exes_before_mem_or_bra << " "
+              << eip << " "
+              << "B "
+              << taken << std::endl;
+
     PIN_ReleaseLock(&pinLock);
+    
+    t_data->num_exes_before_mem_or_bra = 0;
 }
 
 static void memTrace(THREADID t_id,
@@ -94,21 +127,27 @@ static void memTrace(THREADID t_id,
 {
     if (fast_forwarding) { return; }
 
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
+    
     // Lock the print out
     PIN_GetLock(&pinLock, t_id + 1);
-    // Absorb non-mem and non-branch instructions.
-    if (num_exes_before_mem != 0)
-    {
-        trace_out << num_exes_before_mem << " ";
-        num_exes_before_mem = 0;
-    }
 
-    trace_out << eip << " ";
-    if (is_store) { trace_out << "S "; }
-    else { trace_out << "L "; }
+    trace_out << t_id << " "
+              << t_data->num_exes_before_mem_or_bra << " "
+              << eip << " ";
+    if (is_store)
+    {
+        trace_out << "S ";
+    }
+    else
+    {
+        trace_out << "L ";
+    }
     trace_out << mem_addr << std::endl;
 
     PIN_ReleaseLock(&pinLock);
+    
+    t_data->num_exes_before_mem_or_bra = 0;
 }
 
 #define ROI_BEGIN    (1025)
@@ -236,6 +275,13 @@ int
 main(int argc, char *argv[])
 {
     PIN_InitLock(&pinLock);
+    tls_key = PIN_CreateThreadDataKey(NULL);
+    if (tls_key == INVALID_TLS_KEY)
+    {
+        std::cerr << "number of already allocated keys reached the MAX_CLIENT_TLS_KEYS limit" 
+                  << std::endl;
+        PIN_ExitProcess(1);
+    }
 
     PIN_InitSymbols(); // Initialize all the PIN API functions
 
@@ -247,6 +293,12 @@ main(int argc, char *argv[])
     assert(!TraceOut.Value().empty());
 
     trace_out.open(TraceOut.Value().c_str());
+
+    // Register ThreadStart to be called when a thread starts.
+    PIN_AddThreadStartFunction(ThreadStart, NULL);
+
+    // Register Fini to be called when thread exits.
+    PIN_AddThreadFiniFunction(ThreadFini, NULL);
 
     PIN_AddFollowChildProcessFunction(FollowChild, 0);
 

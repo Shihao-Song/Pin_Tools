@@ -14,6 +14,9 @@ ofstream trace_out;
 KNOB<std::string> TraceOut(KNOB_MODE_WRITEONCE, "pintool",
     "o", "", "specify output trace file name");
 
+KNOB<uint64_t> NumInstrsToSkip(KNOB_MODE_WRITEONCE, "pintool",
+    "s", "", "number of instructions to skip before extraction");
+
 BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
 {
     INT appArgc;
@@ -29,6 +32,8 @@ BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
     return FALSE;
 }
 
+static uint64_t roi_skippings;
+static bool entering_roi = false;
 static bool fast_forwarding = true; // Fast-forwarding mode? Initially, we should be
                                     // in fast-forwarding mode.
 PIN_LOCK pinLock;
@@ -37,16 +42,44 @@ static const uint64_t LIMIT = 1000000000; // Maximum of instructions (all thread
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount(THREADID t_id) 
 {
-    if (fast_forwarding) { return; }
+    // When entered into ROI, skip the first 1 billion of instructions then extract the next 
+    // 1 billion of instructions.
+
+    if (!entering_roi) { return; }
 
     PIN_GetLock(&pinLock, t_id + 1);
 
-    ++insn_count;
+    if (fast_forwarding)
+    {
+        // Entered into ROI but still in fast-forwarding mode.
+        ++insn_count;
 
+        if (insn_count % (LIMIT / 2) == 0)
+        {
+             std::cerr << "[PINTOOL] Skipping instructions " << insn_count << std::endl;
+        }
+        if (insn_count >= roi_skippings)
+        {
+            insn_count = 0;
+            fast_forwarding = false;
+            std::cerr << "[PINTOOL] Begin trace extraction." << std::endl;
+            std::cerr << "[PINTOOL] Instruction count is set to " << insn_count
+                      << std::endl;
+        }
+        PIN_ReleaseLock(&pinLock); // Release the lock before exiting.
+        return;
+    }
+
+    assert(entering_roi == true);
+    assert(fast_forwarding == false);
+    ++insn_count; // Increment
     // Exit if it exceeds a threshold.
     if (insn_count >= LIMIT)
     {
-        std::cerr << "Done trace extraction." << std::endl;
+        // std::cerr << "Done trace extraction." << std::endl;
+        std::cerr << "[PINTOOL] End trace extraction." << std::endl;
+        std::cerr << "[PINTOOL] Instruction count is reached " << insn_count
+                  << std::endl;
         trace_out << std::flush;
 	trace_out.close();
         exit(0);
@@ -158,13 +191,13 @@ void HandleMagicOp(THREADID t_id, ADDRINT op)
     {
         case ROI_BEGIN:
             PIN_GetLock(&pinLock, t_id + 1);
-            fast_forwarding = false;
+            entering_roi = true;
             PIN_ReleaseLock(&pinLock);
             // std::cout << "Captured roi_begin() \n";
             return;
         case ROI_END:
             PIN_GetLock(&pinLock, t_id + 1);
-            fast_forwarding = true;
+            entering_roi = false;
             PIN_ReleaseLock(&pinLock);
             // std::cout << "Captured roi_end() \n";
             return;
@@ -293,6 +326,17 @@ main(int argc, char *argv[])
     assert(!TraceOut.Value().empty());
 
     trace_out.open(TraceOut.Value().c_str());
+
+    if (NumInstrsToSkip.Value() == 0)
+    {
+        roi_skippings = LIMIT;
+    }
+    else
+    {
+        roi_skippings = NumInstrsToSkip.Value();
+    }
+    // std::cerr << roi_skippings << std::endl;
+    // exit(0);
 
     // Register ThreadStart to be called when a thread starts.
     PIN_AddThreadStartFunction(ThreadStart, NULL);

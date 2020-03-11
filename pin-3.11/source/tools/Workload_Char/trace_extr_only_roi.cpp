@@ -117,7 +117,8 @@ static void bpTrace(THREADID t_id,
               << t_data->num_exes_before_mem_or_bra << " "
               << eip << " "
               << "B "
-              << taken << std::endl;
+              << taken << " "
+              << target << std::endl;
 
     PIN_ReleaseLock(&pinLock);
     

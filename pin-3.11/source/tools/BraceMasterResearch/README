@@ -1,1 +1,13 @@
+Install hooks first by
+  cd hooks/python_hooks
+  sudo python3 setup.py install
+
+To verify hooks were installed correctly
+  python3 test_app.py
+
+You should see output like
+  [HOOKS] ROI begin
+  [HOOKS] End ROI
+  ...
+
 

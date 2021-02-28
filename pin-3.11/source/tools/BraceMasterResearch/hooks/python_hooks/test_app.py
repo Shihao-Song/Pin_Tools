@@ -7,7 +7,7 @@ y = [i for i in range(51, 100)]
 roi_begin()
 z = []
 for i in range(0, len(x)):
-    z.append(x[i] + y[i])
+    z.append(x[i] / y[i])
 roi_end()
 
 print(z)

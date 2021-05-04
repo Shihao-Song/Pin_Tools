@@ -33,7 +33,6 @@ PIN_LOCK pinLock;
 
 static bool entering_roi = false;
 
-/*
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 
 static void increCount(THREADID t_id) 
@@ -49,7 +48,7 @@ static void increCount(THREADID t_id)
 
     PIN_ReleaseLock(&pinLock);
 }
-*/
+
 /*
 static void printInst(INS ins)
 {
@@ -68,10 +67,11 @@ class thread_data_t
 
     // UINT64 num_add_or_sub = 0;
     // UINT64 num_mul_or_div = 0;
-    UINT64 num_arith = 0;
+    // UINT64 num_arith = 0;
     UINT64 num_stores = 0;
     UINT64 num_loads = 0;
-    UINT64 num_add_or_mul = 0;
+    UINT64 num_add = 0;
+    UINT64 num_mul = 0;
 };
 
 static TLS_KEY tls_key = INVALID_TLS_KEY;
@@ -98,11 +98,9 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
         static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, threadIndex));
 
     PIN_GetLock(&pinLock, tdata->tid + 1);
-    stats_out // << tdata->tid << " " 
-              // << tdata->num_arith << " "
-              << tdata->num_add_or_mul << " "
-              // << tdata->num_add_or_sub << " "
-              // << tdata->num_mul_or_div << " "
+    stats_out << insn_count << " " 
+              << tdata->num_add << " "
+              << tdata->num_mul << " "
               << tdata->num_loads << " "
               << tdata->num_stores << std::endl;
 
@@ -142,12 +140,19 @@ static void addOrSubOps(THREADID t_id)
 }
 
 */
-static void addOrMulOps(THREADID t_id)
+static void mulOps(THREADID t_id)
 {
     if (!entering_roi) { return; }
 
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
-    t_data->num_add_or_mul += 1;
+    t_data->num_mul += 1;
+}
+static void addOps(THREADID t_id)
+{
+    if (!entering_roi) { return; }
+
+    thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
+    t_data->num_add += 1;
 }
 
 #define ROI_BEGIN    (1025)
@@ -174,6 +179,7 @@ void HandleMagicOp(THREADID t_id, ADDRINT op)
 // "Main" function: decode and simulate the instruction
 static void instructionSim(INS ins)
 {
+    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
     // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printInst, ins, IARG_END);
     // if (entering_roi)
     // {
@@ -237,15 +243,24 @@ static void instructionSim(INS ins)
     */  
     else if ((INS_Opcode(ins) == XED_ICLASS_MUL) ||
              (INS_Opcode(ins) == XED_ICLASS_IMUL) ||
-             (INS_Opcode(ins) == XED_ICLASS_FMUL) ||
-             (INS_Opcode(ins) == XED_ICLASS_ADD) ||
+             (INS_Opcode(ins) == XED_ICLASS_FMUL))
+    {
+        
+        INS_InsertCall(ins, 
+                       IPOINT_BEFORE,
+                       (AFUNPTR)mulOps,
+                       IARG_THREAD_ID, 
+                       IARG_END);
+        
+    }
+    else if ((INS_Opcode(ins) == XED_ICLASS_ADD) ||
              (INS_Opcode(ins) == XED_ICLASS_FADD) ||
              (INS_Opcode(ins) == XED_ICLASS_FIADD))
     {
         
         INS_InsertCall(ins, 
                        IPOINT_BEFORE,
-                       (AFUNPTR)addOrMulOps,
+                       (AFUNPTR)addOps,
                        IARG_THREAD_ID, 
                        IARG_END);
         

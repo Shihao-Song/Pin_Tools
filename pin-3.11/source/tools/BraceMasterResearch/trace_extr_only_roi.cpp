@@ -50,7 +50,14 @@ static void increCount(THREADID t_id)
     PIN_ReleaseLock(&pinLock);
 }
 */
+/*
+static void printInst(INS ins)
+{
+    if (!entering_roi) { return; }
 
+    std::cout << INS_Disassemble(ins) << std::endl;
+}
+*/
 // Thread local data
 class thread_data_t
 {
@@ -64,6 +71,7 @@ class thread_data_t
     UINT64 num_arith = 0;
     UINT64 num_stores = 0;
     UINT64 num_loads = 0;
+    UINT64 num_add_or_mul = 0;
 };
 
 static TLS_KEY tls_key = INVALID_TLS_KEY;
@@ -90,8 +98,9 @@ VOID ThreadFini(THREADID threadIndex, const CONTEXT *ctxt, INT32 code, VOID *v)
         static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, threadIndex));
 
     PIN_GetLock(&pinLock, tdata->tid + 1);
-    stats_out << tdata->tid << " " 
-              << tdata->num_arith << " "
+    stats_out // << tdata->tid << " " 
+              // << tdata->num_arith << " "
+              << tdata->num_add_or_mul << " "
               // << tdata->num_add_or_sub << " "
               // << tdata->num_mul_or_div << " "
               << tdata->num_loads << " "
@@ -114,7 +123,7 @@ static void memOps(THREADID t_id,
     if (is_store) { t_data->num_stores += 1; }
     else { t_data->num_loads += 1; }
 }
-
+/*
 static void arithOps(THREADID t_id)
 {
     if (!entering_roi) { return; }
@@ -122,7 +131,7 @@ static void arithOps(THREADID t_id)
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
     t_data->num_arith += 1;
 }
-
+*/
 /*
 static void addOrSubOps(THREADID t_id)
 {
@@ -132,14 +141,14 @@ static void addOrSubOps(THREADID t_id)
     t_data->num_add_or_sub += 1;
 }
 
-static void mulOrDivOps(THREADID t_id)
+*/
+static void addOrMulOps(THREADID t_id)
 {
     if (!entering_roi) { return; }
 
     thread_data_t* t_data = static_cast<thread_data_t*>(PIN_GetThreadData(tls_key, t_id));
-    t_data->num_mul_or_div += 1;
+    t_data->num_add_or_mul += 1;
 }
-*/
 
 #define ROI_BEGIN    (1025)
 #define ROI_END      (1026)
@@ -165,9 +174,12 @@ void HandleMagicOp(THREADID t_id, ADDRINT op)
 // "Main" function: decode and simulate the instruction
 static void instructionSim(INS ins)
 {
-    // Count number of instructions.
-    // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
-    
+    // INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printInst, ins, IARG_END);
+    // if (entering_roi)
+    // {
+    //     std::cout << INS_Disassemble(ins) << std::endl;
+    // }
+
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
     {
         for (unsigned int i = 0; i < INS_MemoryOperandCount(ins); i++)
@@ -201,6 +213,7 @@ static void instructionSim(INS ins)
             }
         }
     }
+    /*
     // arithmetic operations
     else if (INS_Category(ins) == XED_CATEGORY_BINARY)
     {
@@ -209,7 +222,8 @@ static void instructionSim(INS ins)
                        (AFUNPTR)arithOps,
                        IARG_THREAD_ID, 
                        IARG_END);
-    }    
+    }
+    */    
     /*
     else if ((INS_Opcode(ins) == XED_ICLASS_ADD) ||
              (INS_Opcode(ins) == XED_ICLASS_SUB))
@@ -219,21 +233,23 @@ static void instructionSim(INS ins)
                        (AFUNPTR)addOrSubOps,
                        IARG_THREAD_ID, 
                        IARG_END);
-    }    
+    }
+    */  
     else if ((INS_Opcode(ins) == XED_ICLASS_MUL) ||
              (INS_Opcode(ins) == XED_ICLASS_IMUL) ||
              (INS_Opcode(ins) == XED_ICLASS_FMUL) ||
-             (INS_Opcode(ins) == XED_ICLASS_DIV) ||
-             (INS_Opcode(ins) == XED_ICLASS_IDIV) ||
-             (INS_Opcode(ins) == XED_ICLASS_FDIV))
+             (INS_Opcode(ins) == XED_ICLASS_ADD) ||
+             (INS_Opcode(ins) == XED_ICLASS_FADD) ||
+             (INS_Opcode(ins) == XED_ICLASS_FIADD))
     {
+        
         INS_InsertCall(ins, 
                        IPOINT_BEFORE,
-                       (AFUNPTR)mulOrDivOps,
+                       (AFUNPTR)addOrMulOps,
                        IARG_THREAD_ID, 
                        IARG_END);
+        
     }
-    */
     else if (INS_IsXchg(ins) &&
              INS_OperandReg(ins, 0) == REG_RCX &&
              INS_OperandReg(ins, 1) == REG_RCX)

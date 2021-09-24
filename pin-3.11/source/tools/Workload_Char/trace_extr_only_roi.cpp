@@ -32,8 +32,9 @@ BOOL FollowChild(CHILD_PROCESS childProcess, VOID * userData)
 static bool entering_roi = false;
 
 PIN_LOCK pinLock;
-static const uint64_t LIMIT = 1000000000; // Maximum of instructions (all threads) 
-                                          // to be extracted.
+static const uint64_t LIMIT = 10000; // Maximum of instructions (all threads) 
+// static const uint64_t LIMIT = 1000000000; // Maximum of instructions (all threads) 
+                                            // to be extracted.
 static uint64_t insn_count = 0; // Track how many instructions we have already instrumented.
 static void increCount(THREADID t_id) 
 {
@@ -100,6 +101,7 @@ static void nonBranchNorMem(THREADID t_id)
     ++(t_data->num_exes_before_mem_or_bra);
 }
 
+/*
 #include "include/Sim/util.hh"
 static void bpTrace(THREADID t_id,
                     ADDRINT eip,
@@ -124,7 +126,8 @@ static void bpTrace(THREADID t_id,
     
     t_data->num_exes_before_mem_or_bra = 0;
 }
-/*
+*/
+
 static void memTrace(THREADID t_id,
                      ADDRINT eip,
                      bool is_store,
@@ -155,7 +158,6 @@ static void memTrace(THREADID t_id,
     
     t_data->num_exes_before_mem_or_bra = 0;
 }
-*/
 
 #define ROI_BEGIN    (1025)
 #define ROI_END      (1026)
@@ -184,7 +186,6 @@ static void instructionSim(INS ins)
     // Count number of instructions.
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)increCount, IARG_THREAD_ID, IARG_END);
 
-    /*
     if (INS_IsMemoryRead (ins) || INS_IsMemoryWrite (ins))
     {
         for (unsigned int i = 0; i < INS_MemoryOperandCount(ins); i++)
@@ -218,9 +219,8 @@ static void instructionSim(INS ins)
             }
         }
     }
-    else
-    */
-    if (INS_IsBranch(ins) && INS_HasFallThrough(ins))
+    /*
+    else if (INS_IsBranch(ins) && INS_HasFallThrough(ins))
     {
         // Why two calls for a branch?
         // A branch has two path: a taken path and a fall-through path.
@@ -246,6 +246,7 @@ static void instructionSim(INS ins)
             IARG_BRANCH_TARGET_ADDR,
             IARG_END);
     }
+    */
     else if (INS_IsXchg(ins) &&
              INS_OperandReg(ins, 0) == REG_RCX &&
              INS_OperandReg(ins, 1) == REG_RCX)
